@@ -1,10 +1,14 @@
+import os
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
 from passlib.context import CryptContext
 
 
-SECRET_KEY = "change-this-secret-key-in-production"
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "development-secret-key-change-me",
+)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
