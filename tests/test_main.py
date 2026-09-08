@@ -26,7 +26,6 @@ def client(tmp_path):
 
     def override_get_db():
         db = TestingSessionLocal()
-
         try:
             yield db
         finally:
@@ -40,7 +39,11 @@ def client(tmp_path):
     app.dependency_overrides.clear()
 
 
-def register_user(client, username="testuser", email="testuser@example.com"):
+def register_user(
+    client,
+    username="testuser",
+    email="testuser@example.com",
+):
     return client.post(
         "/register",
         json={
@@ -61,11 +64,15 @@ def login_user(client, username="testuser"):
     )
 
 
+# -------------------------
+# Basic / authentication tests
+# -------------------------
+
 def test_root(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.json()["message"] == "Task Management API is running"
+    assert response.json()["message"] == "TaskFlow API is running"
 
 
 def test_health(client):
@@ -94,7 +101,9 @@ def test_duplicate_registration(client):
     response = register_user(client)
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Username or email already registered"
+    assert response.json()["detail"] == (
+        "Username or email already registered"
+    )
 
 
 def test_login(client):
@@ -122,7 +131,9 @@ def test_invalid_login(client):
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid username or password"
+    assert response.json()["detail"] == (
+        "Invalid username or password"
+    )
 
 
 def test_me_requires_authentication(client):
@@ -149,6 +160,10 @@ def test_get_current_user(client):
     assert data["username"] == "testuser"
     assert data["email"] == "testuser@example.com"
 
+
+# -------------------------
+# Task tests
+# -------------------------
 
 def test_create_task(client):
     register_user(client)
@@ -304,3 +319,1030 @@ def test_invalid_task_data(client):
     )
 
     assert response.status_code == 422
+
+
+# -------------------------
+# Subtask tests
+# -------------------------
+
+def create_test_task(client):
+    register_user(client)
+
+    token = login_user(client).json()["access_token"]
+
+    response = client.post(
+        "/tasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Parent Task",
+            "description": "Task with subtasks",
+        },
+    )
+
+    assert response.status_code == 201
+
+    return token, response.json()["id"]
+
+
+def test_create_subtask(client):
+    token, task_id = create_test_task(client)
+
+    response = client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Build authentication API",
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["title"] == "Build authentication API"
+    assert data["completed"] is False
+    assert data["task_id"] == task_id
+    assert "id" in data
+
+
+def test_get_subtasks(client):
+    token, task_id = create_test_task(client)
+
+    client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "First subtask",
+        },
+    )
+
+    client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Second subtask",
+        },
+    )
+
+    response = client.get(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    subtasks = response.json()
+
+    assert len(subtasks) == 2
+    assert subtasks[0]["title"] == "First subtask"
+    assert subtasks[1]["title"] == "Second subtask"
+    assert subtasks[0]["completed"] is False
+    assert subtasks[1]["completed"] is False
+
+
+def test_update_subtask(client):
+    token, task_id = create_test_task(client)
+
+    create_response = client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Original subtask",
+        },
+    )
+
+    subtask_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/subtasks/{subtask_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Updated subtask",
+            "completed": True,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["title"] == "Updated subtask"
+    assert data["completed"] is True
+    assert data["task_id"] == task_id
+
+
+def test_delete_subtask(client):
+    token, task_id = create_test_task(client)
+
+    create_response = client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Delete this subtask",
+        },
+    )
+
+    subtask_id = create_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/subtasks/{subtask_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert delete_response.status_code == 204
+
+    get_response = client.get(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert get_response.status_code == 200
+    assert get_response.json() == []
+
+
+def test_task_progress(client):
+    token, task_id = create_test_task(client)
+
+    first_response = client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Completed subtask",
+        },
+    )
+
+    first_subtask_id = first_response.json()["id"]
+
+    client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Pending subtask",
+        },
+    )
+
+    client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Another pending subtask",
+        },
+    )
+
+    client.put(
+        f"/subtasks/{first_subtask_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "completed": True,
+        },
+    )
+
+    response = client.get(
+        f"/tasks/{task_id}/progress",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["task_id"] == task_id
+    assert data["total_subtasks"] == 3
+    assert data["completed_subtasks"] == 1
+    assert data["progress"] == 33
+
+
+def test_task_progress_with_no_subtasks(client):
+    token, task_id = create_test_task(client)
+
+    response = client.get(
+        f"/tasks/{task_id}/progress",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["task_id"] == task_id
+    assert data["total_subtasks"] == 0
+    assert data["completed_subtasks"] == 0
+    assert data["progress"] == 0
+
+
+def test_subtask_requires_task_owner(client):
+    register_user(
+        client,
+        username="owner",
+        email="owner@example.com",
+    )
+
+    owner_token = login_user(
+        client,
+        username="owner",
+    ).json()["access_token"]
+
+    task_response = client.post(
+        "/tasks",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        json={
+            "title": "Private task",
+        },
+    )
+
+    task_id = task_response.json()["id"]
+
+    register_user(
+        client,
+        username="otheruser",
+        email="other@example.com",
+    )
+
+    other_token = login_user(
+        client,
+        username="otheruser",
+    ).json()["access_token"]
+
+    response = client.post(
+        f"/tasks/{task_id}/subtasks",
+        headers={"Authorization": f"Bearer {other_token}"},
+        json={
+            "title": "Unauthorized subtask",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found"
+
+
+# =========================
+# Comment tests
+# =========================
+
+def test_create_comment(client):
+    token, task_id = create_test_task(client)
+
+    response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "Authentication API is ready for review.",
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["content"] == "Authentication API is ready for review."
+    assert data["task_id"] == task_id
+    assert data["user_id"] == 1
+    assert "id" in data
+    assert "created_at" in data
+    assert "updated_at" in data
+
+
+def test_get_comments(client):
+    token, task_id = create_test_task(client)
+
+    first_response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "First comment",
+        },
+    )
+
+    second_response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "Second comment",
+        },
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+
+    response = client.get(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 2
+    assert data[0]["content"] == "First comment"
+    assert data[1]["content"] == "Second comment"
+    assert data[0]["task_id"] == task_id
+    assert data[1]["task_id"] == task_id
+
+
+def test_update_comment(client):
+    token, task_id = create_test_task(client)
+
+    create_response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "Original comment",
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    comment_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/comments/{comment_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "Updated comment",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == comment_id
+    assert data["content"] == "Updated comment"
+    assert data["task_id"] == task_id
+    assert data["user_id"] == 1
+
+
+def test_delete_comment(client):
+    token, task_id = create_test_task(client)
+
+    create_response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "Comment to delete",
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    comment_id = create_response.json()["id"]
+
+    response = client.delete(
+        f"/comments/{comment_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 204
+
+    get_response = client.get(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert get_response.status_code == 200
+    assert get_response.json() == []
+
+
+def test_comment_requires_authentication(client):
+    response = client.post(
+        "/tasks/1/comments",
+        json={
+            "content": "Unauthenticated comment",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_get_comments_requires_authentication(client):
+    response = client.get("/tasks/1/comments")
+
+    assert response.status_code == 401
+
+
+def test_comment_invalid_task(client):
+    register_user(client)
+
+    token = login_user(client).json()["access_token"]
+
+    response = client.post(
+        "/tasks/9999/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "This task does not exist",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found"
+
+
+def test_comment_empty_content(client):
+    token, task_id = create_test_task(client)
+
+    response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_nonexistent_comment(client):
+    register_user(client)
+
+    token = login_user(client).json()["access_token"]
+
+    response = client.put(
+        "/comments/9999",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "content": "Updated comment",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Comment not found"
+
+
+def test_delete_nonexistent_comment(client):
+    register_user(client)
+
+    token = login_user(client).json()["access_token"]
+
+    response = client.delete(
+        "/comments/9999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Comment not found"
+
+# =========================
+# Activity tests
+# =========================
+
+def test_task_creation_creates_activity(client):
+    token, task_id = create_test_task(client)
+
+    response = client.get(
+        "/activities",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["action"] == "task_created"
+    assert data[0]["task_id"] == task_id
+    assert data[0]["project_id"] is None
+    assert data[0]["user_id"] == 1
+    assert "created task" in data[0]["description"]
+    assert "created_at" in data[0]
+
+def test_task_status_change_creates_activity(client):
+    token, task_id = create_test_task(client)
+
+    update_response = client.put(
+        f"/tasks/{task_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "in_progress"},
+    )
+
+    assert update_response.status_code == 200
+
+    response = client.get(
+        "/activities",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 2
+
+    # Latest activity should be the status change
+    assert data[0]["action"] == "task_status_changed"
+    assert data[0]["task_id"] == task_id
+    assert data[0]["user_id"] == 1
+    assert "in_progress" in data[0]["description"]
+
+    # Original task creation activity
+    assert data[1]["action"] == "task_created"
+    assert data[1]["task_id"] == task_id
+
+
+def test_task_assignment_creates_notification(client):
+    token, _ = create_test_task(client)
+
+    # Register a second user who will receive the notification.
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+
+    assert register_response.status_code == 201
+
+    # Login as Alex.
+    login_response = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    alex_token = login_response.json()["access_token"]
+
+    # Get Alex's user ID.
+    me_response = client.get(
+        "/me",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert me_response.status_code == 200
+
+    alex_id = me_response.json()["id"]
+
+    # Create a team.
+    team_response = client.post(
+        "/teams",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Team Cyberpunk",
+            "description": "TaskFlow project workspace",
+        },
+    )
+
+    assert team_response.status_code == 201
+
+    team_id = team_response.json()["id"]
+
+    # Add Alex to the team.
+    member_response = client.post(
+        f"/teams/{team_id}/members",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "user_id": alex_id,
+            "role": "member",
+        },
+    )
+
+    assert member_response.status_code == 201
+
+    # Create a project inside the team.
+    project_response = client.post(
+        "/projects",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Notification Project",
+            "description": "Project used for notification testing",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+
+    assert project_response.status_code == 201
+
+    project_id = project_response.json()["id"]
+
+    # Create a task inside the project and assign it to Alex.
+    task_response = client.post(
+        "/tasks",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "title": "Assigned task",
+            "description": "Task assigned to Alex",
+            "project_id": project_id,
+            "assignee_id": alex_id,
+        },
+    )
+
+    assert task_response.status_code == 201
+
+    task_data = task_response.json()
+
+    assert task_data["assignee_id"] == alex_id
+    assert task_data["project_id"] == project_id
+
+    # Check Alex's notifications.
+    notifications_response = client.get(
+        "/notifications",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert notifications_response.status_code == 200
+
+    notifications = notifications_response.json()
+
+    assert len(notifications) == 1
+
+    notification = notifications[0]
+
+    assert notification["title"] == "New task assigned"
+    assert notification["notification_type"] == "task_assigned"
+    assert notification["user_id"] == alex_id
+    assert notification["task_id"] == task_data["id"]
+    assert notification["project_id"] == project_id
+    assert notification["is_read"] is False
+    assert "Assigned task" in notification["message"]
+
+def test_task_status_change_creates_notification_for_assignee(client):
+    token, _ = create_test_task(client)
+
+    # Register Alex.
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+
+    assert register_response.status_code == 201
+
+    # Login as Alex.
+    login_response = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    alex_token = login_response.json()["access_token"]
+
+    # Get Alex's ID.
+    me_response = client.get(
+        "/me",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert me_response.status_code == 200
+
+    alex_id = me_response.json()["id"]
+
+    # Create a team.
+    team_response = client.post(
+        "/teams",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Cyberpunk Team",
+            "description": "Notification test team",
+        },
+    )
+
+    assert team_response.status_code == 201
+
+    team_id = team_response.json()["id"]
+
+    # Add Alex to the team.
+    member_response = client.post(
+        f"/teams/{team_id}/members",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "user_id": alex_id,
+            "role": "member",
+        },
+    )
+
+    assert member_response.status_code == 201
+
+    # Create a project.
+    project_response = client.post(
+        "/projects",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Status Notification Project",
+            "description": "Testing status notifications",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+
+    assert project_response.status_code == 201
+
+    project_id = project_response.json()["id"]
+
+    # Create a task assigned to Alex.
+    task_response = client.post(
+        "/tasks",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "title": "Status notification task",
+            "description": "Testing status changes",
+            "project_id": project_id,
+            "assignee_id": alex_id,
+        },
+    )
+
+    assert task_response.status_code == 201
+
+    task_id = task_response.json()["id"]
+
+    # The assignment notification should already exist.
+    notifications_response = client.get(
+        "/notifications",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert notifications_response.status_code == 200
+
+    notifications = notifications_response.json()
+
+    assert len(notifications) == 1
+    assert notifications[0]["notification_type"] == "task_assigned"
+
+    # Change the task status as the owner.
+    update_response = client.put(
+        f"/tasks/{task_id}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "status": "in_progress",
+        },
+    )
+
+    assert update_response.status_code == 200
+
+    assert update_response.json()["status"] == "in_progress"
+
+    # Alex should now have two notifications.
+    notifications_response = client.get(
+        "/notifications",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert notifications_response.status_code == 200
+
+    notifications = notifications_response.json()
+
+    assert len(notifications) == 2
+
+    status_notification = notifications[0]
+
+    assert status_notification["title"] == "Task status updated"
+    assert status_notification["notification_type"] == "task_status_changed"
+    assert status_notification["user_id"] == alex_id
+    assert status_notification["task_id"] == task_id
+    assert status_notification["project_id"] == project_id
+    assert status_notification["is_read"] is False
+    assert "in_progress" in status_notification["message"]
+
+    assignment_notification = notifications[1]
+
+    assert assignment_notification["notification_type"] == "task_assigned"
+    assert assignment_notification["task_id"] == task_id
+
+
+def test_comment_creates_notification_for_assignee(client):
+    token, _ = create_test_task(client)
+
+    # Register Alex.
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+
+    assert register_response.status_code == 201
+
+    # Login as Alex.
+    login_response = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    alex_token = login_response.json()["access_token"]
+
+    # Get Alex's ID.
+    me_response = client.get(
+        "/me",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert me_response.status_code == 200
+
+    alex_id = me_response.json()["id"]
+
+    # Create a team.
+    team_response = client.post(
+        "/teams",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Comment Team",
+            "description": "Comment notification test team",
+        },
+    )
+
+    assert team_response.status_code == 201
+
+    team_id = team_response.json()["id"]
+
+    # Add Alex to the team.
+    member_response = client.post(
+        f"/teams/{team_id}/members",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "user_id": alex_id,
+            "role": "member",
+        },
+    )
+
+    assert member_response.status_code == 201
+
+    # Create a project.
+    project_response = client.post(
+        "/projects",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Comment Notification Project",
+            "description": "Testing comment notifications",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+
+    assert project_response.status_code == 201
+
+    project_id = project_response.json()["id"]
+
+    # Create a task assigned to Alex.
+    task_response = client.post(
+        "/tasks",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "title": "Comment notification task",
+            "description": "Testing comment notifications",
+            "project_id": project_id,
+            "assignee_id": alex_id,
+        },
+    )
+
+    assert task_response.status_code == 201
+
+    task_id = task_response.json()["id"]
+
+    # Alex should initially have one assignment notification.
+    notifications_response = client.get(
+        "/notifications",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert notifications_response.status_code == 200
+
+    notifications = notifications_response.json()
+
+    assert len(notifications) == 1
+    assert notifications[0]["notification_type"] == "task_assigned"
+
+    # Alex comments on the task.
+    comment_response = client.post(
+        f"/tasks/{task_id}/comments",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+        json={
+            "content": "I have started working on this task.",
+        },
+    )
+
+    assert comment_response.status_code == 201
+
+    comment_data = comment_response.json()
+
+    assert comment_data["task_id"] == task_id
+    assert comment_data["user_id"] == alex_id
+    assert comment_data["content"] == (
+        "I have started working on this task."
+    )
+
+    # Ganesh owns the task, so he should receive a notification
+    # when Alex comments on it.
+    notifications_response = client.get(
+        "/notifications",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert notifications_response.status_code == 200
+
+    ganesh_notifications = notifications_response.json()
+
+    assert len(ganesh_notifications) == 1
+
+    ganesh_notification = ganesh_notifications[0]
+
+    assert ganesh_notification["title"] == "New comment"
+    assert ganesh_notification["notification_type"] == "comment_added"
+    assert ganesh_notification["user_id"] == 1
+    assert ganesh_notification["task_id"] == task_id
+    assert ganesh_notification["project_id"] == project_id
+    assert ganesh_notification["is_read"] is False
+    assert "alex" in ganesh_notification["message"]
+    assert "Comment notification task" in ganesh_notification["message"]
+
+    # Alex should NOT receive a notification for his own comment.
+    notifications_response = client.get(
+        "/notifications",
+        headers={
+            "Authorization": f"Bearer {alex_token}",
+        },
+    )
+
+    assert notifications_response.status_code == 200
+
+    alex_notifications = notifications_response.json()
+
+    assert len(alex_notifications) == 1
+    assert alex_notifications[0]["notification_type"] == "task_assigned"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
