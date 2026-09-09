@@ -344,6 +344,12 @@ class NotificationResponse(BaseModel):
 class NotificationReadUpdate(BaseModel):
     is_read: bool
 
-
-
-
+class ProjectOverviewResponse(BaseModel):
+    project_id: int
+    total_tasks: int
+    completed_tasks: int
+    todo_tasks: int
+    in_progress_tasks: int
+    in_review_tasks: int
+    overdue_tasks: int
+    progress: int

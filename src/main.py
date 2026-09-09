@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +32,7 @@ from src.schemas import (
     ActivityResponse,
     NotificationResponse,
     NotificationReadUpdate,
+    ProjectOverviewResponse,
 )
 from src.security import create_access_token, hash_password, verify_password
 
@@ -1867,5 +1868,63 @@ def delete_notification(
         "message": "Notification deleted successfully",
     }
 
+@app.get(
+    "/projects/{project_id}/overview",
+    response_model=ProjectOverviewResponse,
+)
+def get_project_overview(
+    project_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = get_user_project(project_id, current_user, db)
 
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
+    tasks = (
+        db.query(models.Task)
+        .filter(models.Task.project_id == project_id)
+        .all()
+    )
+
+    total_tasks = len(tasks)
+    completed_tasks = sum(
+        1 for task in tasks if task.status == "completed"
+    )
+    todo_tasks = sum(
+        1 for task in tasks if task.status == "todo"
+    )
+    in_progress_tasks = sum(
+        1 for task in tasks if task.status == "in_progress"
+    )
+    in_review_tasks = sum(
+        1 for task in tasks if task.status == "in_review"
+    )
+
+    today = date.today()
+
+    overdue_tasks = sum(
+        1
+        for task in tasks
+        if task.due_date is not None
+        and task.due_date < today
+        and task.status != "completed"
+    )
+
+    progress = (
+        round((completed_tasks / total_tasks) * 100)
+        if total_tasks > 0
+        else 0
+    )
+
+    return ProjectOverviewResponse(
+        project_id=project_id,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        todo_tasks=todo_tasks,
+        in_progress_tasks=in_progress_tasks,
+        in_review_tasks=in_review_tasks,
+        overdue_tasks=overdue_tasks,
+        progress=progress,
+    )

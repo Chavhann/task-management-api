@@ -1322,6 +1322,106 @@ def test_comment_creates_notification_for_assignee(client):
     assert alex_notifications[0]["notification_type"] == "task_assigned"
 
 
+def test_project_overview_returns_real_task_statistics(client):
+    token, _ = create_test_task(client)
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create a team owned by the test user.
+    team_response = client.post(
+        "/teams",
+        headers=headers,
+        json={
+            "name": "Overview Test Team",
+            "description": "Testing project overview",
+        },
+    )
+
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    # Create a project.
+    project_response = client.post(
+        "/projects",
+        headers=headers,
+        json={
+            "name": "Overview Test Project",
+            "description": "Testing project statistics",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+    assert project_response.status_code == 201
+    project_id = project_response.json()["id"]
+
+    # Create TODO task.
+    todo_response = client.post(
+        "/tasks",
+        headers=headers,
+        json={
+            "title": "Todo task",
+            "project_id": project_id,
+            "status": "todo",
+        },
+    )
+    assert todo_response.status_code == 201
+
+    # Create IN PROGRESS task.
+    progress_response = client.post(
+        "/tasks",
+        headers=headers,
+        json={
+            "title": "Progress task",
+            "project_id": project_id,
+            "status": "in_progress",
+        },
+    )
+    assert progress_response.status_code == 201
+
+    # Create IN REVIEW task.
+    review_response = client.post(
+        "/tasks",
+        headers=headers,
+        json={
+            "title": "Review task",
+            "project_id": project_id,
+            "status": "in_review",
+        },
+    )
+    assert review_response.status_code == 201
+
+    # Create COMPLETED task.
+    completed_response = client.post(
+        "/tasks",
+        headers=headers,
+        json={
+            "title": "Completed task",
+            "project_id": project_id,
+            "status": "completed",
+        },
+    )
+    assert completed_response.status_code == 201
+
+    # Get project overview.
+    overview_response = client.get(
+        f"/projects/{project_id}/overview",
+        headers=headers,
+    )
+
+    assert overview_response.status_code == 200
+
+    data = overview_response.json()
+
+    assert data["project_id"] == project_id
+    assert data["total_tasks"] == 4
+    assert data["completed_tasks"] == 1
+    assert data["todo_tasks"] == 1
+    assert data["in_progress_tasks"] == 1
+    assert data["in_review_tasks"] == 1
+    assert data["overdue_tasks"] == 0
+    assert data["progress"] == 25
+
+
 def test_assignee_can_update_but_cannot_delete_task(client):
     token, _ = create_test_task(client)
 
@@ -1334,9 +1434,9 @@ def test_assignee_can_update_but_cannot_delete_task(client):
             "password": "AlexTest2026!",
         },
     )
-
     assert register_response.status_code == 201
 
+    # Login Alex.
     alex_login_response = client.post(
         "/login",
         json={
@@ -1344,90 +1444,60 @@ def test_assignee_can_update_but_cannot_delete_task(client):
             "password": "AlexTest2026!",
         },
     )
-
     assert alex_login_response.status_code == 200
 
     alex_token = alex_login_response.json()["access_token"]
-    alex_headers = {
-        "Authorization": f"Bearer {alex_token}",
-    }
+    alex_headers = {"Authorization": f"Bearer {alex_token}"}
 
     # Create a team.
     team_response = client.post(
         "/teams",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Authorization Test Team",
-            "description": "Testing task permissions",
+            "name": "Assignee Authorization Team",
+            "description": "Testing assignee permissions",
         },
     )
-
     assert team_response.status_code == 201
-
     team_id = team_response.json()["id"]
 
     # Add Alex to the team.
     member_response = client.post(
         f"/teams/{team_id}/members",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "user_id": 2,
-            "role": "member",
-        },
+        headers={"Authorization": f"Bearer {token}"},
+        json={"user_id": 2, "role": "member"},
     )
-
     assert member_response.status_code == 201
 
-    # Create a project inside the team.
+    # Create a project.
     project_response = client.post(
         "/projects",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Authorization Test Project",
-            "description": "Testing task permissions",
+            "name": "Assignee Authorization Project",
+            "description": "Testing assignee permissions",
             "status": "active",
             "team_id": team_id,
         },
     )
-
     assert project_response.status_code == 201
-
     project_id = project_response.json()["id"]
 
-    # Create a task and assign it to Alex.
+    # Create a task assigned to Alex.
     task_response = client.post(
         "/tasks",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         json={
-            "title": "Authorization Test Task",
-            "description": "Testing assignee permissions",
+            "title": "Assignee Authorization Task",
+            "description": "Testing assignee access",
             "project_id": project_id,
             "assignee_id": 2,
         },
     )
-
     assert task_response.status_code == 201
-
     task_id = task_response.json()["id"]
 
-    # Alex can view the assigned task.
-    get_response = client.get(
-        f"/tasks/{task_id}",
-        headers=alex_headers,
-    )
-
-    assert get_response.status_code == 200
-    assert get_response.json()["id"] == task_id
-
-    # Alex can update the assigned task.
+    # Alex can update the task because he is the assignee.
     update_response = client.put(
         f"/tasks/{task_id}",
         headers=alex_headers,
@@ -1435,16 +1505,14 @@ def test_assignee_can_update_but_cannot_delete_task(client):
             "title": "Updated by Alex",
         },
     )
-
     assert update_response.status_code == 200
     assert update_response.json()["title"] == "Updated by Alex"
 
-    # Alex cannot delete the task.
+    # Alex cannot delete the task because he is only the assignee.
     delete_response = client.delete(
         f"/tasks/{task_id}",
         headers=alex_headers,
     )
-
     assert delete_response.status_code == 403
 
 
@@ -1460,9 +1528,9 @@ def test_team_member_can_view_but_cannot_modify_task(client):
             "password": "AlexTest2026!",
         },
     )
-
     assert register_response.status_code == 201
 
+    # Login Alex.
     alex_login_response = client.post(
         "/login",
         json={
@@ -1470,51 +1538,35 @@ def test_team_member_can_view_but_cannot_modify_task(client):
             "password": "AlexTest2026!",
         },
     )
-
     assert alex_login_response.status_code == 200
 
     alex_token = alex_login_response.json()["access_token"]
-
-    alex_headers = {
-        "Authorization": f"Bearer {alex_token}",
-    }
+    alex_headers = {"Authorization": f"Bearer {alex_token}"}
 
     # Create a team.
     team_response = client.post(
         "/teams",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "name": "Member Authorization Team",
             "description": "Testing team member permissions",
         },
     )
-
     assert team_response.status_code == 201
-
     team_id = team_response.json()["id"]
 
     # Add Alex as a regular team member.
     member_response = client.post(
         f"/teams/{team_id}/members",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "user_id": 2,
-            "role": "member",
-        },
+        headers={"Authorization": f"Bearer {token}"},
+        json={"user_id": 2, "role": "member"},
     )
-
     assert member_response.status_code == 201
 
     # Create a project in the team.
     project_response = client.post(
         "/projects",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "name": "Member Authorization Project",
             "description": "Testing team member permissions",
@@ -1522,26 +1574,20 @@ def test_team_member_can_view_but_cannot_modify_task(client):
             "team_id": team_id,
         },
     )
-
     assert project_response.status_code == 201
-
     project_id = project_response.json()["id"]
 
     # Create a task owned by Ganesh.
     task_response = client.post(
         "/tasks",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "title": "Member Authorization Task",
             "description": "Testing team member access",
             "project_id": project_id,
         },
     )
-
     assert task_response.status_code == 201
-
     task_id = task_response.json()["id"]
 
     # Alex can view the task because he is a team member.
@@ -1549,12 +1595,10 @@ def test_team_member_can_view_but_cannot_modify_task(client):
         f"/tasks/{task_id}",
         headers=alex_headers,
     )
-
     assert get_response.status_code == 200
     assert get_response.json()["id"] == task_id
 
-    # Alex cannot modify the task because he is not the owner,
-    # project owner, team owner, or assignee.
+    # Alex cannot modify the task.
     update_response = client.put(
         f"/tasks/{task_id}",
         headers=alex_headers,
@@ -1562,7 +1606,6 @@ def test_team_member_can_view_but_cannot_modify_task(client):
             "title": "Alex should not be able to change this",
         },
     )
-
     assert update_response.status_code == 403
 
     # Alex cannot delete the task.
@@ -1570,25 +1613,4 @@ def test_team_member_can_view_but_cannot_modify_task(client):
         f"/tasks/{task_id}",
         headers=alex_headers,
     )
-
     assert delete_response.status_code == 403
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
