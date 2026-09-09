@@ -1046,12 +1046,32 @@ def get_tasks(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return (
+    tasks = (
         db.query(models.Task)
-        .filter(models.Task.user_id == current_user.id)
+        .outerjoin(
+            models.Project,
+            models.Task.project_id == models.Project.id,
+        )
+        .outerjoin(
+            models.Team,
+            models.Project.team_id == models.Team.id,
+        )
+        .outerjoin(
+            models.TeamMember,
+            models.TeamMember.team_id == models.Team.id,
+        )
+        .filter(
+            (models.Task.user_id == current_user.id)
+            | (models.Task.assignee_id == current_user.id)
+            | (models.Project.owner_id == current_user.id)
+            | (models.Team.owner_id == current_user.id)
+            | (models.TeamMember.user_id == current_user.id)
+        )
+        .distinct()
         .all()
     )
 
+    return tasks
 
 @app.get(
     "/tasks/{task_id}",
@@ -1062,13 +1082,10 @@ def get_task(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    task = (
-        db.query(models.Task)
-        .filter(
-            models.Task.id == task_id,
-            models.Task.user_id == current_user.id,
-        )
-        .first()
+    task = get_user_task(
+        task_id,
+        current_user,
+        db,
     )
 
     if task is None:
@@ -1078,7 +1095,6 @@ def get_task(
         )
 
     return task
-
 
 @app.put(
     "/tasks/{task_id}",
@@ -1090,13 +1106,10 @@ def update_task(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    task = (
-        db.query(models.Task)
-        .filter(
-            models.Task.id == task_id,
-            models.Task.user_id == current_user.id,
-        )
-        .first()
+    task = get_user_task(
+        task_id,
+        current_user,
+        db,
     )
 
     if task is None:
@@ -1105,6 +1118,36 @@ def update_task(
             detail="Task not found",
         )
 
+    can_modify = task.user_id == current_user.id
+
+    if not can_modify and task.project_id is not None:
+        project = (
+            db.query(models.Project)
+            .filter(models.Project.id == task.project_id)
+            .first()
+        )
+
+        if project is not None:
+            if project.owner_id == current_user.id:
+                can_modify = True
+            else:
+                team = (
+                    db.query(models.Team)
+                    .filter(models.Team.id == project.team_id)
+                    .first()
+                )
+
+                if team is not None and team.owner_id == current_user.id:
+                    can_modify = True
+
+    if not can_modify and task.assignee_id == current_user.id:
+        can_modify = True
+
+    if not can_modify:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to modify this task",
+        )
     target_project_id = task.project_id
 
     if "project_id" in task_data.model_fields_set:
@@ -1228,13 +1271,10 @@ def delete_task(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    task = (
-        db.query(models.Task)
-        .filter(
-            models.Task.id == task_id,
-            models.Task.user_id == current_user.id,
-        )
-        .first()
+    task = get_user_task(
+        task_id,
+        current_user,
+        db,
     )
 
     if task is None:
@@ -1243,11 +1283,38 @@ def delete_task(
             detail="Task not found",
         )
 
+    can_delete = task.user_id == current_user.id
+
+    if not can_delete and task.project_id is not None:
+        project = (
+            db.query(models.Project)
+            .filter(models.Project.id == task.project_id)
+            .first()
+        )
+
+        if project is not None:
+            if project.owner_id == current_user.id:
+                can_delete = True
+            else:
+                team = (
+                    db.query(models.Team)
+                    .filter(models.Team.id == project.team_id)
+                    .first()
+                )
+
+                if team is not None and team.owner_id == current_user.id:
+                    can_delete = True
+
+    if not can_delete:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete this task",
+        )
+
     db.delete(task)
     db.commit()
 
     return None
-
 
 # -------------------------
 # Subtask helpers
