@@ -228,6 +228,36 @@ def get_user_team(
 
 
 # -------------------------
+# User search
+# -------------------------
+
+@app.get("/users/search", response_model=list[UserResponse])
+def search_users(
+    q: str = "",
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = q.strip()
+
+    if not query:
+        return []
+
+    users = (
+        db.query(models.User)
+        .filter(
+            (models.User.username.ilike(f"%{query}%"))
+            | (models.User.email.ilike(f"%{query}%"))
+        )
+        .filter(models.User.id != current_user.id)
+        .order_by(models.User.username)
+        .limit(10)
+        .all()
+    )
+
+    return users
+
+
+# -------------------------
 # Teams
 # -------------------------
 
@@ -453,7 +483,15 @@ def add_team_member(
     db.commit()
     db.refresh(new_member)
 
-    return new_member
+    return {
+        "id": new_member.id,
+        "team_id": new_member.team_id,
+        "user_id": new_member.user_id,
+        "username": user.username,
+        "email": user.email,
+        "role": new_member.role,
+        "joined_at": new_member.joined_at,
+    }
 
 
 @app.get(
@@ -487,11 +525,28 @@ def get_team_members(
             detail="Team not found",
         )
 
-    return (
-        db.query(models.TeamMember)
+    members = (
+        db.query(models.TeamMember, models.User)
+        .join(
+            models.User,
+            models.User.id == models.TeamMember.user_id,
+        )
         .filter(models.TeamMember.team_id == team_id)
         .all()
     )
+
+    return [
+        {
+            "id": membership.id,
+            "team_id": membership.team_id,
+            "user_id": membership.user_id,
+            "username": user.username,
+            "email": user.email,
+            "role": membership.role,
+            "joined_at": membership.joined_at,
+        }
+        for membership, user in members
+    ]
 
 
 @app.delete(

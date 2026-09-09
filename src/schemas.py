@@ -244,6 +244,8 @@ class TeamMemberResponse(BaseModel):
     id: int
     team_id: int
     user_id: int
+    username: str
+    email: EmailStr
     role: str
     joined_at: datetime
 

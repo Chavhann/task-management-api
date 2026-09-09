@@ -909,6 +909,27 @@ def test_task_assignment_creates_notification(client):
 
     assert member_response.status_code == 201
 
+    # Verify team members include user details.
+    members_response = client.get(
+        f"/teams/{team_id}/members",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert members_response.status_code == 200
+
+    members = members_response.json()
+
+    alex_member = next(
+        member for member in members
+        if member["user_id"] == alex_id
+    )
+
+    assert alex_member["username"] == "alex"
+    assert alex_member["email"] == "alex@example.com"
+    assert alex_member["role"] == "member"
+
     # Create a project inside the team.
     project_response = client.post(
         "/projects",
