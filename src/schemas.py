@@ -353,3 +353,30 @@ class ProjectOverviewResponse(BaseModel):
     in_review_tasks: int
     overdue_tasks: int
     progress: int
+
+
+class ProjectDashboardResponse(BaseModel):
+    project_id: int
+    project_name: str
+    project_status: str
+
+    total_tasks: int
+    completed_tasks: int
+    todo_tasks: int
+    in_progress_tasks: int
+    in_review_tasks: int
+    overdue_tasks: int
+
+    progress: int
+
+    total_comments: int
+    total_subtasks: int
+
+    recent_tasks: list[TaskResponse]
+    recent_activity: list[ActivityResponse]
+
+
+
+
+
+

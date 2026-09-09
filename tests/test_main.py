@@ -1614,3 +1614,88 @@ def test_team_member_can_view_but_cannot_modify_task(client):
         headers=alex_headers,
     )
     assert delete_response.status_code == 403
+
+
+
+def test_project_dashboard_returns_real_project_data(client):
+    token, _ = create_test_task(client)
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=headers,
+        json={
+            "name": "Dashboard Test Team",
+            "description": "Testing dashboard",
+        },
+    )
+
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    project_response = client.post(
+        "/projects",
+        headers=headers,
+        json={
+            "name": "Dashboard Test Project",
+            "description": "Testing dashboard data",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+
+    assert project_response.status_code == 201
+    project_id = project_response.json()["id"]
+
+    # Create tasks in different states.
+    for title, task_status in [
+        ("Todo task", "todo"),
+        ("Progress task", "in_progress"),
+        ("Review task", "in_review"),
+        ("Completed task", "completed"),
+    ]:
+        response = client.post(
+            "/tasks",
+            headers=headers,
+            json={
+                "title": title,
+                "project_id": project_id,
+                "status": task_status,
+            },
+        )
+        assert response.status_code == 201
+
+    dashboard_response = client.get(
+        f"/projects/{project_id}/dashboard",
+        headers=headers,
+    )
+
+    assert dashboard_response.status_code == 200
+
+    data = dashboard_response.json()
+
+    assert data["project_id"] == project_id
+    assert data["project_name"] == "Dashboard Test Project"
+    assert data["project_status"] == "active"
+
+    assert data["total_tasks"] == 4
+    assert data["completed_tasks"] == 1
+    assert data["todo_tasks"] == 1
+    assert data["in_progress_tasks"] == 1
+    assert data["in_review_tasks"] == 1
+
+    assert data["overdue_tasks"] == 0
+    assert data["progress"] == 25
+
+    assert data["total_comments"] == 0
+    assert data["total_subtasks"] == 0
+
+    assert len(data["recent_tasks"]) == 4
+
+
+
+
+
+
+    

@@ -33,6 +33,7 @@ from src.schemas import (
     NotificationResponse,
     NotificationReadUpdate,
     ProjectOverviewResponse,
+    ProjectDashboardResponse,
 )
 from src.security import create_access_token, hash_password, verify_password
 
@@ -691,6 +692,76 @@ def get_project(
     "/projects/{project_id}",
     response_model=ProjectResponse,
 )
+
+@app.get(
+    "/projects/{project_id}/overview",
+    response_model=ProjectOverviewResponse,
+)
+def get_project_overview(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = get_user_project(project_id, current_user, db)
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    tasks = (
+        db.query(models.Task)
+        .filter(models.Task.project_id == project_id)
+        .all()
+    )
+
+    total_tasks = len(tasks)
+
+    completed_tasks = sum(
+        1 for task in tasks if task.status == "completed"
+    )
+
+    todo_tasks = sum(
+        1 for task in tasks if task.status == "todo"
+    )
+
+    in_progress_tasks = sum(
+        1 for task in tasks if task.status == "in_progress"
+    )
+
+    in_review_tasks = sum(
+        1 for task in tasks if task.status == "in_review"
+    )
+
+    today = date.today()
+
+    overdue_tasks = sum(
+        1
+        for task in tasks
+        if task.due_date is not None
+        and task.due_date < today
+        and task.status != "completed"
+    )
+
+    progress = (
+        round((completed_tasks / total_tasks) * 100)
+        if total_tasks > 0
+        else 0
+    )
+
+    return ProjectOverviewResponse(
+        project_id=project_id,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        todo_tasks=todo_tasks,
+        in_progress_tasks=in_progress_tasks,
+        in_review_tasks=in_review_tasks,
+        overdue_tasks=overdue_tasks,
+        progress=progress,
+    )
+
+
 def update_project(
     project_id: int,
     project_data: ProjectUpdate,
@@ -1869,10 +1940,10 @@ def delete_notification(
     }
 
 @app.get(
-    "/projects/{project_id}/overview",
-    response_model=ProjectOverviewResponse,
+    "/projects/{project_id}/dashboard",
+    response_model=ProjectDashboardResponse,
 )
-def get_project_overview(
+def get_project_dashboard(
     project_id: int,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1885,19 +1956,24 @@ def get_project_overview(
     tasks = (
         db.query(models.Task)
         .filter(models.Task.project_id == project_id)
+        .order_by(models.Task.created_at.desc())
         .all()
     )
 
     total_tasks = len(tasks)
+
     completed_tasks = sum(
         1 for task in tasks if task.status == "completed"
     )
+
     todo_tasks = sum(
         1 for task in tasks if task.status == "todo"
     )
+
     in_progress_tasks = sum(
         1 for task in tasks if task.status == "in_progress"
     )
+
     in_review_tasks = sum(
         1 for task in tasks if task.status == "in_review"
     )
@@ -1918,8 +1994,36 @@ def get_project_overview(
         else 0
     )
 
-    return ProjectOverviewResponse(
-        project_id=project_id,
+    task_ids = [task.id for task in tasks]
+
+    total_comments = 0
+    total_subtasks = 0
+
+    if task_ids:
+        total_comments = (
+            db.query(models.Comment)
+            .filter(models.Comment.task_id.in_(task_ids))
+            .count()
+        )
+
+        total_subtasks = (
+            db.query(models.Subtask)
+            .filter(models.Subtask.task_id.in_(task_ids))
+            .count()
+        )
+
+    recent_activity = (
+        db.query(models.Activity)
+        .filter(models.Activity.project_id == project_id)
+        .order_by(models.Activity.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    return ProjectDashboardResponse(
+        project_id=project.id,
+        project_name=project.name,
+        project_status=project.status,
         total_tasks=total_tasks,
         completed_tasks=completed_tasks,
         todo_tasks=todo_tasks,
@@ -1927,4 +2031,14 @@ def get_project_overview(
         in_review_tasks=in_review_tasks,
         overdue_tasks=overdue_tasks,
         progress=progress,
+        total_comments=total_comments,
+        total_subtasks=total_subtasks,
+        recent_tasks=tasks[:10],
+        recent_activity=recent_activity,
     )
+
+
+
+
+
+
