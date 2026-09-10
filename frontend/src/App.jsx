@@ -58,7 +58,7 @@ const formatDueDate = (dueDate) => {
 };
 
 const getDueDateStatus = (task) => {
-  if (!task.due_date || task.completed) {
+  if (!task || !task.due_date || task.completed) {
     return null;
   }
 
@@ -80,10 +80,14 @@ const getDueDateStatus = (task) => {
 };
 
 const getDueDateLabel = (task) => {
+  if (!task) {
+    return null;
+  }
+
   const status = getDueDateStatus(task);
 
   if (status === "overdue") {
-    return `Overdue · ${formatDueDate(task.due_date)}`;
+    return `Overdue - ${formatDueDate(task.due_date)}`;
   }
 
   if (status === "today") {
@@ -130,6 +134,7 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
     due_date: "",
     priority: "medium",
     category: "other",
+    assignee_id: "",
   });
 
   const [editTask, setEditTask] = useState({
@@ -139,6 +144,8 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
     priority: "medium",
     category: "other",
     completed: false,
+    assignee_id: "",
+    assignee_id: "",
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -314,6 +321,7 @@ const fetchUserAndTasks = async () => {
       const loadedProjects = projectsResponse.data;
 
       setUser(userResponse.data);
+
       setTasks(tasksResponse.data);
       setProjects(loadedProjects);
 
@@ -453,6 +461,9 @@ useEffect(() => {
         due_date: newTask.due_date || null,
         priority: newTask.priority,
         category: newTask.category,
+        assignee_id: newTask.assignee_id
+          ? Number(newTask.assignee_id)
+          : null,
       });
 
       setTasks((currentTasks) => [...currentTasks, response.data]);
@@ -463,6 +474,7 @@ useEffect(() => {
         due_date: "",
         priority: "medium",
         category: "other",
+        assignee_id: "",
       });
     } catch (error) {
       handleAuthError(error);
@@ -479,6 +491,7 @@ useEffect(() => {
       priority: task.priority || "medium",
       category: task.category || "other",
       completed: task.completed,
+      assignee_id: task.assignee_id ? String(task.assignee_id) : "",
     });
 
     setTaskError("");
@@ -494,6 +507,7 @@ useEffect(() => {
       priority: "medium",
       category: "other",
       completed: false,
+      assignee_id: "",
     });
   };
 
@@ -516,6 +530,9 @@ useEffect(() => {
         priority: editTask.priority,
         category: editTask.category,
         completed: editTask.completed,
+        assignee_id: editTask.assignee_id
+          ? Number(editTask.assignee_id)
+          : null,
       });
 
       setTasks((currentTasks) =>
@@ -644,6 +661,7 @@ useEffect(() => {
 
       const response = await api.put(`/tasks/${task.id}`, {
         completed: false,
+    assignee_id: "",
       });
 
       setTasks((currentTasks) =>
@@ -689,7 +707,7 @@ useEffect(() => {
     return (
       <div className="auth-page">
         <div className="auth-showcase">
-          <div className="brand-mark">✓</div>
+          <div className="brand-mark">TF</div>
 
           <div className="brand-name">TaskFlow</div>
 
@@ -706,7 +724,7 @@ useEffect(() => {
 
           <div className="feature-list">
             <div className="feature-item">
-              <span>•</span>
+              <span>-</span>
               <div>
                 <strong>Smart task management</strong>
                 <small>Create, organize, and track your tasks.</small>
@@ -714,7 +732,7 @@ useEffect(() => {
             </div>
 
             <div className="feature-item">
-              <span>•</span>
+              <span>-</span>
               <div>
                 <strong>Priorities & deadlines</strong>
                 <small>Know what needs your attention next.</small>
@@ -722,7 +740,7 @@ useEffect(() => {
             </div>
 
             <div className="feature-item">
-              <span>•</span>
+              <span>-</span>
               <div>
                 <strong>Progress tracking</strong>
                 <small>See your progress and keep moving forward.</small>
@@ -734,7 +752,7 @@ useEffect(() => {
         <div className="auth-panel">
           <div className="auth-card">
             <div className="mobile-brand">
-              <div className="brand-mark">✓</div>
+              <div className="brand-mark">TF</div>
               <div className="brand-name">TaskFlow</div>
             </div>
 
@@ -859,7 +877,7 @@ useEffect(() => {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-mark">✓</div>
+          <div className="brand-mark">TF</div>
           <div className="brand-name">TaskFlow</div>
         </div>
 
@@ -895,7 +913,7 @@ useEffect(() => {
             className={`nav-item ${filter === "all" ? "active" : ""}`}
             onClick={() => setFilter("all")}
           >
-            <span>•</span>
+            <span>-</span>
             All Tasks
           </button>
 
@@ -903,7 +921,7 @@ useEffect(() => {
             className={`nav-item ${filter === "pending" ? "active" : ""}`}
             onClick={() => setFilter("pending")}
           >
-            <span>•</span>
+            <span>-</span>
             Pending
           </button>
 
@@ -913,7 +931,7 @@ useEffect(() => {
             }`}
             onClick={() => setFilter("completed")}
           >
-            <span>•</span>
+            <span>-</span>
             Completed
           </button>
         </nav>
@@ -1287,9 +1305,18 @@ useEffect(() => {
                             </p>
                           )}
 
+                          {task.assignee && (
+                            <div className="kanban-card-assignee">
+                              <span className="assignee-avatar">
+                                {task.assignee.username.charAt(0).toUpperCase()}
+                              </span>
+                              <span>{task.assignee.username}</span>
+                            </div>
+                          )}
+
                           <div className="kanban-card-meta">
                             <span>
-                              {getDueDateLabel(task.due_date)}
+                              {getDueDateLabel(task)}
                             </span>
 
                             <span>
@@ -1467,6 +1494,39 @@ useEffect(() => {
               </select>
             </div>
 
+            <div className="input-wrapper assignee-input">
+              <label htmlFor="new-task-assignee">
+                Assignee
+              </label>
+
+              <select
+                id="new-task-assignee"
+                value={newTask.assignee_id}
+                onChange={(event) =>
+                  setNewTask({
+                    ...newTask,
+                    assignee_id: event.target.value,
+                  })
+                }
+                disabled={!selectedTeamId || teamMembers.length === 0}
+              >
+                <option value="">
+                  {teamMembers.length === 0
+                    ? "No team members"
+                    : "Unassigned"}
+                </option>
+
+                {teamMembers.map((member) => (
+                  <option
+                    key={member.user_id}
+                    value={member.user_id}
+                  >
+                    {member.username}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="input-wrapper category-input">
               <label htmlFor="new-task-category">
                 Category
@@ -1501,7 +1561,7 @@ useEffect(() => {
 
         <section className="task-toolbar">
           <div className="search-box">
-            <span>•</span>
+            <span>-</span>
 
             <input
               type="text"
@@ -1542,7 +1602,7 @@ useEffect(() => {
             </div>
           ) : filteredTasks.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-icon">✓</div>
+              <div className="empty-icon">OK</div>
               <h3>No tasks found</h3>
               <p>
                 {search
@@ -1629,6 +1689,25 @@ useEffect(() => {
                         </select>
                       </div>
 
+                      <div className="input-wrapper assignee-input">
+                        <label>Assignee</label>
+                        <select
+                          value={editTask.assignee_id}
+                          onChange={(event) =>
+                            setEditTask({
+                              ...editTask,
+                              assignee_id: event.target.value,
+                            })
+                          }
+                        >
+                          <option value="">Unassigned</option>
+                          {teamMembers.map((member) => (
+                            <option key={member.user_id} value={member.user_id}>
+                              {member.username}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="input-wrapper category-input">
                         <label>Category</label>
 
@@ -1677,7 +1756,7 @@ useEffect(() => {
                   key={task.id}
                   className={`task-card ${
                     dueDateStatus === "overdue" ? "overdue" : ""
-                  } ${task.completed ? "✓" : ""}`}
+                  } ${task.completed ? "OK" : ""}`}
                 >
                   <div className="task-main">
                     <button
@@ -1691,7 +1770,7 @@ useEffect(() => {
                           : "Complete task"
                       }
                     >
-                      {task.completed ? "✓" : ""}
+                      {task.completed ? "OK" : ""}
                     </button>
 
                     <div className="task-content">
@@ -1701,7 +1780,7 @@ useEffect(() => {
                         <span
                           className={`priority-badge ${task.priority}`}
                         >
-                          <span>•</span>
+                          <span>-</span>
                           {getPriorityLabel(task.priority)}
                         </span>
 
@@ -1725,13 +1804,13 @@ useEffect(() => {
                               dueDateStatus || ""
                             }`}
                           >
-                            • {dueDateLabel}
+                            - {dueDateLabel}
                           </span>
                         )}
 
                         {task.completed_at && (
                           <span className="completed-badge">
-                            ✓ Completed{" "}
+                            OK Completed{" "}
                             {new Date(
                               task.completed_at
                             ).toLocaleString()}
@@ -1779,10 +1858,10 @@ useEffect(() => {
               className="modal-close"
               onClick={closeCompletionModal}
             >
-              ×
+              x
             </button>
 
-            <div className="modal-icon">ƒ¢…€œ¢‚¬Å“</div>
+            <div className="modal-icon">!</div>
 
             <h2>Complete this task?</h2>
 
@@ -1831,3 +1910,10 @@ useEffect(() => {
 }
 
 export default App;
+
+
+
+
+
+
+

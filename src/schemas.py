@@ -203,6 +203,14 @@ class TaskUpdate(BaseModel):
     )
 
 
+class TaskAssigneeResponse(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TaskResponse(BaseModel):
     id: int
     title: str
@@ -220,6 +228,7 @@ class TaskResponse(BaseModel):
     user_id: int
     project_id: int | None
     assignee_id: int | None
+    assignee: TaskAssigneeResponse | None
 
     created_at: datetime
     updated_at: datetime
@@ -376,6 +385,7 @@ class ProjectDashboardResponse(BaseModel):
 
     recent_tasks: list[TaskResponse]
     recent_activity: list[ActivityResponse]
+
 
 
 
