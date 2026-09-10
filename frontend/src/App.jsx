@@ -162,6 +162,14 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
 
   const [completionTask, setCompletionTask] = useState(null);
   const [completionNote, setCompletionNote] = useState("");
+  const [taskSubtasks, setTaskSubtasks] = useState({});
+  const [taskComments, setTaskComments] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [expandedSubtasks, setExpandedSubtasks] = useState({});
+  const [taskProgress, setTaskProgress] = useState({});
+  const [subtaskInputs, setSubtaskInputs] = useState({});
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -443,6 +451,194 @@ useEffect(() => {
     }
   };
 
+  const fetchSubtasks = async (taskId) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      const response = await api.get(
+        `/tasks/${taskId}/subtasks`
+      );
+
+      setTaskSubtasks((current) => ({
+        ...current,
+        [taskId]: response.data,
+      }));
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const fetchComments = async (taskId) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      const response = await api.get(
+        `/tasks/${taskId}/comments`
+      );
+
+      setTaskComments((current) => ({
+        ...current,
+        [taskId]: response.data,
+      }));
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const createComment = async (taskId) => {
+    const content = (commentInputs[taskId] || "").trim();
+
+    if (!content || !token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      await api.post(`/tasks/${taskId}/comments`, {
+        content,
+      });
+
+      setCommentInputs((current) => ({
+        ...current,
+        [taskId]: "",
+      }));
+
+      await fetchComments(taskId);
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const updateComment = async (commentId, taskId, content) => {
+    const updatedContent = content.trim();
+
+    if (!updatedContent || !token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      await api.put(`/comments/${commentId}`, {
+        content: updatedContent,
+      });
+
+      await fetchComments(taskId);
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+
+  const deleteComment = async (commentId, taskId) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      await api.delete(`/comments/${commentId}`);
+
+      await fetchComments(taskId);
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const fetchTaskProgress = async (taskId) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      const response = await api.get(
+        `/tasks/${taskId}/progress`
+      );
+
+      setTaskProgress((current) => ({
+        ...current,
+        [taskId]: response.data,
+      }));
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const createSubtask = async (taskId) => {
+    const title = (subtaskInputs[taskId] || "").trim();
+
+    if (!title || !token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      await api.post(`/tasks/${taskId}/subtasks`, {
+        title,
+      });
+
+      setSubtaskInputs((current) => ({
+        ...current,
+        [taskId]: "",
+      }));
+
+      await fetchSubtasks(taskId);
+      await fetchTaskProgress(taskId);
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const toggleSubtask = async (subtask) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      await api.put(`/subtasks/${subtask.id}`, {
+        completed: !subtask.completed,
+      });
+
+      await fetchSubtasks(subtask.task_id);
+      await fetchTaskProgress(subtask.task_id);
+      await fetchTaskProgress(subtask.task_id);
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+  const deleteSubtask = async (subtask) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      api.defaults.headers.common.Authorization =
+        `Bearer ${token}`;
+
+      await api.delete(`/subtasks/${subtask.id}`);
+
+      await fetchSubtasks(subtask.task_id);
+      await fetchTaskProgress(subtask.task_id);
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
   const handleCreateTask = async (event) => {
     event.preventDefault();
 
@@ -1819,7 +2015,300 @@ useEffect(() => {
                         )}
                       </div>
 
-                      {task.completion_note && (
+                      <div className="subtasks-section">
+                        <div className="subtasks-header">
+                          <button
+                            type="button"
+                            className="subtasks-toggle"
+                            onClick={async () => {
+                              const isExpanded =
+                                expandedSubtasks[task.id];
+
+                              setExpandedSubtasks((current) => ({
+                                ...current,
+                                [task.id]: !isExpanded,
+                              }));
+
+                              if (!isExpanded) {
+                                await fetchSubtasks(task.id);
+                                await fetchTaskProgress(task.id);
+                              }
+                            }}
+                          >
+                            <span>
+                              Subtasks
+                            </span>
+                            <span className="subtasks-progress-text">
+                              {taskProgress[task.id]
+                                ? `${taskProgress[task.id].completed_subtasks} / ${taskProgress[task.id].total_subtasks}`
+                                : "0 / 0"}
+                            </span>
+                          </button>
+
+                          {taskProgress[task.id] && (
+                            <div className="subtasks-progress">
+                              <div className="subtasks-progress-bar">
+                                <div
+                                  className="subtasks-progress-fill"
+                                  style={{
+                                    width: `${taskProgress[task.id].progress}%`,
+                                  }}
+                                />
+                              </div>
+                              <span>
+                                {taskProgress[task.id].progress}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {expandedSubtasks[task.id] && (
+                          <div className="subtasks-list">
+                            {(taskSubtasks[task.id] || []).map(
+                              (subtask) => (
+                                <div
+                                  key={subtask.id}
+                                  className={`subtask-item ${
+                                    subtask.completed
+                                      ? "completed"
+                                      : ""
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="subtask-check"
+                                    onClick={() =>
+                                      toggleSubtask(subtask)
+                                    }
+                                    title={
+                                      subtask.completed
+                                        ? "Mark incomplete"
+                                        : "Mark complete"
+                                    }
+                                  >
+                                    {subtask.completed ? "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“" : "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹"}
+                                  </button>
+
+                                  <span className="subtask-title">
+                                    {subtask.title}
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    className="subtask-delete"
+                                    onClick={() =>
+                                      deleteSubtask(subtask)
+                                    }
+                                    title="Delete subtask"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )
+                            )}
+
+                            <div className="subtask-add-row">
+                              <input
+                                type="text"
+                                placeholder="Add a subtask..."
+                                value={subtaskInputs[task.id] || ""}
+                                onChange={(event) =>
+                                  setSubtaskInputs((current) => ({
+                                    ...current,
+                                    [task.id]: event.target.value,
+                                  }))
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    createSubtask(task.id);
+                                  }
+                                }}
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  createSubtask(task.id)
+                                }
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="comments-section">
+              <div className="comments-header">
+                <button
+                  type="button"
+                  className="comments-toggle"
+                  onClick={async () => {
+                    await fetchComments(task.id);
+                  }}
+                >
+                  <span>Discussion</span>
+                  <span className="comments-count">
+                    {taskComments[task.id]
+                      ? taskComments[task.id].length
+                      : "0"}
+                  </span>
+                </button>
+              </div>
+
+              <div className="comments-list">
+                {(taskComments[task.id] || []).map(
+                  (comment) => (
+                    <div
+                      key={comment.id}
+                      className="comment-item"
+                    >
+                      <div className="comment-avatar">
+                        {(comment.user?.username || "U").charAt(0).toUpperCase()}
+                      </div>
+
+                      <div className="comment-content">
+                        <div className="comment-meta">
+                          <span className="comment-author">
+                            {comment.user?.username || `User ${comment.user_id}`}
+                          </span>
+
+                          <span className="comment-time">
+                            {new Date(
+                              comment.created_at
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+
+                        {editingCommentId === comment.id ? (
+                          <div className="comment-edit-row">
+                            <input
+                              type="text"
+                              value={editingCommentText}
+                              onChange={(event) =>
+                                setEditingCommentText(
+                                  event.target.value
+                                )
+                              }
+                              onKeyDown={async (event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+
+                                  await updateComment(
+                                    comment.id,
+                                    task.id,
+                                    editingCommentText
+                                  );
+
+                                  setEditingCommentId(null);
+                                  setEditingCommentText("");
+                                }
+
+                                if (event.key === "Escape") {
+                                  setEditingCommentId(null);
+                                  setEditingCommentText("");
+                                }
+                              }}
+                              autoFocus
+                            />
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await updateComment(
+                                  comment.id,
+                                  task.id,
+                                  editingCommentText
+                                );
+
+                                setEditingCommentId(null);
+                                setEditingCommentText("");
+                              }}
+                            >
+                              Save
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCommentId(null);
+                                setEditingCommentText("");
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="comment-text">
+                              {comment.content}
+                            </p>
+
+                            {comment.user_id === user?.id && (
+                              <div className="comment-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCommentId(
+                                      comment.id
+                                    );
+                                    setEditingCommentText(
+                                      comment.content
+                                    );
+                                  }}
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    deleteComment(
+                                      comment.id,
+                                      task.id
+                                    )
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                <div className="comment-add-row">
+                  <input
+                    type="text"
+                    placeholder="Write a comment..."
+                    value={commentInputs[task.id] || ""}
+                    onChange={(event) =>
+                      setCommentInputs((current) => ({
+                        ...current,
+                        [task.id]: event.target.value,
+                      }))
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        createComment(task.id);
+                      }
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => createComment(task.id)}
+                  >
+                    Comment
+                  </button>
+                </div>
+              </div>
+            </div>
+            {task.completion_note && (
                         <div className="completion-note">
                           <strong>Completion note:</strong>{" "}
                           {task.completion_note}

@@ -313,11 +313,21 @@ class CommentUpdate(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
 
 
+
+class CommentUserResponse(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CommentResponse(BaseModel):
     id: int
     content: str
     task_id: int
     user_id: int
+    user: CommentUserResponse
     created_at: datetime
     updated_at: datetime
 
