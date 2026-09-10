@@ -520,6 +520,7 @@ useEffect(() => {
 
     setTaskError("");
 
+
     try {
       api.defaults.headers.common.Authorization = `Bearer ${token}`;
 
@@ -1910,10 +1911,3 @@ useEffect(() => {
 }
 
 export default App;
-
-
-
-
-
-
-
