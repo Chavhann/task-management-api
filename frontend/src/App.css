@@ -2700,3 +2700,250 @@ select:focus-visible {
     width: 100%;
   }
 }
+
+/* Notifications */
+.notification-wrapper {
+  position: relative;
+  margin-left: 18px;
+}
+
+.notification-button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #111827;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+  transition: 0.2s ease;
+}
+
+.notification-button:hover {
+  transform: translateY(-1px);
+  border-color: #0ea5e9;
+}
+
+.notification-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  border: 2px solid #0f172a;
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 360px;
+  max-height: 480px;
+  overflow-y: auto;
+  z-index: 1000;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  background: #0f172a;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+.notification-dropdown-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #334155;
+  background: #0f172a;
+}
+
+.notification-dropdown-header strong {
+  color: #f8fafc;
+  font-size: 15px;
+}
+
+.notification-dropdown-header span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.notification-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid #1e293b;
+  transition: background 0.2s ease;
+}
+
+.notification-item:hover {
+  background: #172033;
+}
+
+.notification-item.unread {
+  background: #111f33;
+}
+
+.notification-content strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.notification-content p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.notification-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.notification-actions button {
+  padding: 5px 9px;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.notification-actions button:hover {
+  border-color: #0ea5e9;
+  color: #38bdf8;
+}
+
+.notification-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .notification-dropdown {
+    position: fixed;
+    top: 76px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* Project Activity */
+.project-activity-section {
+  margin-bottom: 28px;
+  padding: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.project-activity-section .section-header {
+  margin-bottom: 18px;
+}
+
+.project-activity-section .section-header h2 {
+  margin: 5px 0 4px;
+  color: #f8fafc;
+  font-size: 19px;
+}
+
+.project-activity-section .section-header p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.project-activity-section .activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.project-activity-section .activity-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.project-activity-section .activity-item:last-child {
+  border-bottom: 0;
+}
+
+.project-activity-section .activity-dot {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: rgba(14, 165, 233, 0.12);
+  color: #38bdf8;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.project-activity-section .activity-details {
+  min-width: 0;
+}
+
+.project-activity-section .activity-details strong {
+  display: block;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.project-activity-section .activity-details span {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.project-activity-section .activity-empty {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+@media (max-width: 650px) {
+  .project-activity-section {
+    padding: 16px;
+  }
+}
