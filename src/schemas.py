@@ -1,4 +1,4 @@
-from datetime import date, datetime
+﻿from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: EmailStr
+    role: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -245,7 +246,7 @@ class TeamMemberCreate(BaseModel):
 
     role: str = Field(
         default="member",
-        pattern="^(member|admin)$",
+        pattern="^(member|admin|team_head)$",
     )
 
 
@@ -395,6 +396,7 @@ class ProjectDashboardResponse(BaseModel):
 
     recent_tasks: list[TaskResponse]
     recent_activity: list[ActivityResponse]
+
 
 
 

@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -38,6 +38,26 @@ def migrate_database():
     inspector = inspect(engine)
 
     tables = inspector.get_table_names()
+
+    # --------------------------------
+    # Users table migrations
+    # --------------------------------
+
+    if "users" in tables:
+        user_columns = {
+            column["name"]
+            for column in inspector.get_columns("users")
+        }
+
+        if "role" not in user_columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "ALTER TABLE users "
+                        "ADD COLUMN role VARCHAR(20) "
+                        "NOT NULL DEFAULT 'member'"
+                    )
+                )
 
     # --------------------------------
     # Tasks table migrations

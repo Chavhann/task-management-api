@@ -1,10 +1,10 @@
-from fastapi import Depends, HTTPException, status
+﻿from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.models import User
+from src.models import TeamMember, User
 from src.security import ALGORITHM, SECRET_KEY
 
 
@@ -46,3 +46,42 @@ def get_current_user(
         raise credentials_exception
 
     return user
+
+def require_manager(
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manager access required",
+        )
+
+    return current_user
+def require_team_manager(
+    team_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role == "manager":
+        return current_user
+
+    membership = (
+        db.query(
+            TeamMember
+        )
+        .filter(
+            TeamMember.team_id == team_id,
+            TeamMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if membership is None or membership.role not in ("admin", "team_head"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Team manager access required",
+        )
+
+    return current_user
+
+

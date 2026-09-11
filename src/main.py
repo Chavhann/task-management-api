@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+﻿from datetime import date, datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -433,18 +433,32 @@ def add_team_member(
 ):
     team = (
         db.query(models.Team)
-        .filter(
-            models.Team.id == team_id,
-            models.Team.owner_id == current_user.id,
-        )
+        .filter(models.Team.id == team_id)
         .first()
     )
 
     if team is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Team not found or you are not the team owner",
+            detail="Team not found",
         )
+
+    if current_user.role != "manager":
+        membership = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == team_id,
+                models.TeamMember.user_id == current_user.id,
+                models.TeamMember.role.in_(["admin", "team_head"]),
+            )
+            .first()
+        )
+
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Team manager access required",
+            )
 
     user = (
         db.query(models.User)
@@ -2091,6 +2105,7 @@ def get_project_dashboard(
         recent_tasks=tasks[:10],
         recent_activity=recent_activity,
     )
+
 
 
 
