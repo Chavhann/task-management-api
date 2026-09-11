@@ -149,7 +149,6 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
     category: "other",
     completed: false,
     assignee_id: "",
-    assignee_id: "",
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -157,6 +156,46 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [viewMode, setViewMode] = useState("board");
+  const [calendarDate, setCalendarDate] = useState(new Date());
+
+  const calendarYear = calendarDate.getFullYear();
+  const calendarMonth = calendarDate.getMonth();
+
+  const calendarMonthLabel = calendarDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const calendarStart = new Date(calendarYear, calendarMonth, 1);
+  const calendarEnd = new Date(calendarYear, calendarMonth + 1, 0);
+  const calendarStartDay = calendarStart.getDay();
+  const calendarDaysInMonth = calendarEnd.getDate();
+
+  const calendarCells = [];
+
+  for (let i = 0; i < calendarStartDay; i++) {
+    calendarCells.push(null);
+  }
+
+  for (let day = 1; day <= calendarDaysInMonth; day++) {
+    calendarCells.push(new Date(calendarYear, calendarMonth, day));
+  }
+
+  while (calendarCells.length % 7 !== 0) {
+    calendarCells.push(null);
+  }
+
+  const getTasksForCalendarDay = (date) => {
+    if (!date) {
+      return [];
+    }
+
+    const dateKey = `${date.getFullYear()}-${String(
+      date.getMonth() + 1
+    ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+    return filteredTasks.filter((task) => task.due_date === dateKey);
+  };
 
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -943,7 +982,6 @@ useEffect(() => {
 
       const response = await api.put(`/tasks/${task.id}`, {
         completed: false,
-    assignee_id: "",
       });
 
       setTasks((currentTasks) =>
@@ -1408,7 +1446,7 @@ useEffect(() => {
               <div className="activity-list">
                 {projectDashboard.recent_activity.map((activity) => (
                   <div className="activity-item" key={activity.id}>
-                    <div className="activity-dot">ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢</div>
+                <div className="activity-dot">+</div>
                     <div className="activity-details">
                       <strong>{activity.description}</strong>
                       <span>
@@ -1589,6 +1627,13 @@ useEffect(() => {
               >
                 Table
               </button>
+              <button
+                type="button"
+                className={viewMode === "calendar" ? "active" : ""}
+                onClick={() => setViewMode("calendar")}
+              >
+                Calendar
+              </button>
             </div>
 
             <div className="board-summary">
@@ -1599,7 +1644,8 @@ useEffect(() => {
             </div>
           </div>
 
-          {viewMode === "board" ? (          <div className="kanban-board">
+          {viewMode === "board" ? (
+            <div className="kanban-board">
             {KANBAN_COLUMNS.map((column) => {
               const columnTasks = filteredTasks.filter(
                 (task) => task.status === column.id
@@ -1724,7 +1770,81 @@ useEffect(() => {
                 </div>
               );
             })}
-          </div>          ) : (
+          </div>
+          ) : viewMode === "calendar" ? (
+            <div className="calendar-view">
+              <div className="calendar-header">
+                <button
+                  type="button"
+                  className="calendar-nav-button"
+                  onClick={() =>
+                    setCalendarDate(
+                      new Date(calendarYear, calendarMonth - 1, 1)
+                    )
+                  }
+                >
+                  Previous
+                </button>
+
+                <h2>{calendarMonthLabel}</h2>
+
+                <button
+                  type="button"
+                  className="calendar-nav-button"
+                  onClick={() =>
+                    setCalendarDate(
+                      new Date(calendarYear, calendarMonth + 1, 1)
+                    )
+                  }
+                >
+                  Next
+                </button>
+              </div>
+
+              <div className="calendar-weekdays">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                  (day) => (
+                    <div key={day} className="calendar-weekday">
+                      {day}
+                    </div>
+                  )
+                )}
+              </div>
+
+              <div className="calendar-grid">
+                {calendarCells.map((date, index) => {
+                  const dayTasks = getTasksForCalendarDay(date);
+
+                  return (
+                    <div
+                      key={date ? date.toISOString() : `empty-${index}`}
+                      className={`calendar-cell${date ? "" : " empty"}`}
+                    >
+                      {date && (
+                        <>
+                          <div className="calendar-day-number">
+                            {date.getDate()}
+                          </div>
+
+                          <div className="calendar-tasks">
+                            {dayTasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="calendar-task"
+                                title={task.title}
+                              >
+                                {task.title}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
             <div className="task-table-wrapper">
               <table className="task-table">
                 <thead>
