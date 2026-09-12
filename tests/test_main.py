@@ -2089,3 +2089,117 @@ def test_regular_member_cannot_edit_team(client):
     )
 
     assert update_response.status_code == 403
+
+def test_manager_can_delete_any_team(client):
+    token, _ = create_test_task(client)
+
+    from src.database import get_db
+
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        test_user = (
+            test_db.query(models.User)
+            .filter(models.User.username == "testuser")
+            .first()
+        )
+        test_user.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    manager_headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Manager Delete Team",
+            "description": "Team to be deleted by manager",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/teams/{team_id}",
+        headers=manager_headers,
+    )
+
+    assert delete_response.status_code == 204
+
+    get_response = client.get(
+        f"/teams/{team_id}",
+        headers=manager_headers,
+    )
+    assert get_response.status_code == 404
+
+
+def test_regular_member_cannot_delete_team(client):
+    token, _ = create_test_task(client)
+
+    from src.database import get_db
+
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        test_user = (
+            test_db.query(models.User)
+            .filter(models.User.username == "testuser")
+            .first()
+        )
+        test_user.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    manager_headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Protected Delete Team",
+            "description": "Protected team",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "deletealex",
+            "email": "deletealex@example.com",
+            "password": "DeleteAlex2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    add_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": 2, "role": "member"},
+    )
+    assert add_response.status_code == 201
+
+    alex_login = client.post(
+        "/login",
+        json={
+            "username": "deletealex",
+            "password": "DeleteAlex2026!",
+        },
+    )
+    assert alex_login.status_code == 200
+
+    alex_headers = {
+        "Authorization": f"Bearer {alex_login.json()['access_token']}"
+    }
+
+    delete_response = client.delete(
+        f"/teams/{team_id}",
+        headers=alex_headers,
+    )
+
+    assert delete_response.status_code == 404
+

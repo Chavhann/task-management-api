@@ -446,17 +446,20 @@ def delete_team(
 ):
     team = (
         db.query(models.Team)
-        .filter(
-            models.Team.id == team_id,
-            models.Team.owner_id == current_user.id,
-        )
+        .filter(models.Team.id == team_id)
         .first()
     )
 
     if team is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Team not found or you are not the team owner",
+            detail="Team not found",
+        )
+
+    if current_user.role != "manager" and team.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
         )
 
     db.delete(team)
