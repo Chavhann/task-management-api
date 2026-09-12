@@ -925,11 +925,6 @@ def get_project(
     return project
 
 
-@app.put(
-    "/projects/{project_id}",
-    response_model=ProjectResponse,
-)
-
 @app.get(
     "/projects/{project_id}/overview",
     response_model=ProjectOverviewResponse,
@@ -999,6 +994,10 @@ def get_project_overview(
     )
 
 
+@app.put(
+    "/projects/{project_id}",
+    response_model=ProjectResponse,
+)
 def update_project(
     project_id: int,
     project_data: ProjectUpdate,
@@ -1023,13 +1022,32 @@ def update_project(
         .first()
     )
 
-    if project.owner_id != current_user.id and (
-        team is None or team.owner_id != current_user.id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to modify this project",
+    # Company managers, project owners, team owners, and team heads
+    # can modify projects within their authorized team scope.
+    if current_user.role != "manager" and project.owner_id != current_user.id:
+        if team is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to modify this project",
+            )
+
+        team_membership = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == project.team_id,
+                models.TeamMember.user_id == current_user.id,
+            )
+            .first()
         )
+
+        if team.owner_id != current_user.id and (
+            team_membership is None
+            or team_membership.role != "team_head"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to modify this project",
+            )
 
     new_team_id = (
         project_data.team_id
@@ -1047,6 +1065,17 @@ def update_project(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not a member of the target team",
+        )
+
+    # Team Heads may manage projects only within their own team.
+    if (
+        current_user.role != "manager"
+        and membership.role == "team_head"
+        and new_team_id != project.team_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Team Heads cannot move projects to another team",
         )
 
     new_start_date = (

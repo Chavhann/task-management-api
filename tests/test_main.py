@@ -2424,3 +2424,218 @@ def test_team_head_cannot_access_another_team(client, manager_token):
     )
     assert other_team_response.status_code == 404
 
+def test_team_head_cannot_access_project_in_another_team(client, manager_token):
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+
+    # Create two separate teams.
+    team_a = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Project Scope Team A",
+            "description": "Project scope test A",
+        },
+    )
+    assert team_a.status_code == 201
+    team_a_id = team_a.json()["id"]
+
+    team_b = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Project Scope Team B",
+            "description": "Project scope test B",
+        },
+    )
+    assert team_b.status_code == 201
+    team_b_id = team_b.json()["id"]
+
+    # Register a fresh Team Head.
+    register_head = client.post(
+        "/register",
+        json={
+            "username": "projecthead",
+            "email": "projecthead@example.com",
+            "password": "ProjectHead2026!",
+        },
+    )
+    assert register_head.status_code == 201
+
+    head_login = client.post(
+        "/login",
+        json={
+            "username": "projecthead",
+            "password": "ProjectHead2026!",
+        },
+    )
+    assert head_login.status_code == 200
+    head_headers = {
+        "Authorization": f"Bearer {head_login.json()['access_token']}"
+    }
+
+    # Find the new user's ID from the registration response.
+    head_user_id = register_head.json()["id"]
+
+    # Add the user to Team A as Team Head.
+    add_head = client.post(
+        f"/teams/{team_a_id}/members",
+        headers=manager_headers,
+        json={"user_id": head_user_id, "role": "team_head"},
+    )
+    assert add_head.status_code == 201
+
+    # Manager creates a project in Team B.
+    project = client.post(
+        "/projects",
+        headers=manager_headers,
+        json={
+            "name": "Team B Private Project",
+            "description": "Should not be visible to Team A head",
+            "status": "active",
+            "team_id": team_b_id,
+        },
+    )
+    assert project.status_code == 201
+    project_id = project.json()["id"]
+
+    # Team Head from Team A cannot access Team B's project.
+    response = client.get(
+        f"/projects/{project_id}",
+        headers=head_headers,
+    )
+    assert response.status_code == 403
+
+def test_team_head_can_access_project_in_own_team(client, manager_token):
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+
+    team = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Own Project Team",
+            "description": "Own team project test",
+        },
+    )
+    assert team.status_code == 201
+    team_id = team.json()["id"]
+
+    register_head = client.post(
+        "/register",
+        json={
+            "username": "ownprojecthead",
+            "email": "ownprojecthead@example.com",
+            "password": "OwnProjectHead2026!",
+        },
+    )
+    assert register_head.status_code == 201
+    head_user_id = register_head.json()["id"]
+
+    head_login = client.post(
+        "/login",
+        json={
+            "username": "ownprojecthead",
+            "password": "OwnProjectHead2026!",
+        },
+    )
+    assert head_login.status_code == 200
+    head_headers = {
+        "Authorization": f"Bearer {head_login.json()['access_token']}"
+    }
+
+    add_head = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": head_user_id, "role": "team_head"},
+    )
+    assert add_head.status_code == 201
+
+    project = client.post(
+        "/projects",
+        headers=manager_headers,
+        json={
+            "name": "Own Team Project",
+            "description": "Team Head should access this",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+    assert project.status_code == 201
+    project_id = project.json()["id"]
+
+    response = client.get(
+        f"/projects/{project_id}",
+        headers=head_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == project_id
+
+def test_team_head_can_update_project_in_own_team(client, manager_token):
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+
+    team = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Update Project Team",
+            "description": "Team Head update test",
+        },
+    )
+    assert team.status_code == 201
+    team_id = team.json()["id"]
+
+    register_head = client.post(
+        "/register",
+        json={
+            "username": "updateprojecthead",
+            "email": "updateprojecthead@example.com",
+            "password": "UpdateProjectHead2026!",
+        },
+    )
+    assert register_head.status_code == 201
+    head_user_id = register_head.json()["id"]
+
+    head_login = client.post(
+        "/login",
+        json={
+            "username": "updateprojecthead",
+            "password": "UpdateProjectHead2026!",
+        },
+    )
+    assert head_login.status_code == 200
+    head_headers = {
+        "Authorization": f"Bearer {head_login.json()['access_token']}"
+    }
+
+    add_head = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": head_user_id, "role": "team_head"},
+    )
+    assert add_head.status_code == 201
+
+    project = client.post(
+        "/projects",
+        headers=manager_headers,
+        json={
+            "name": "Original Project Name",
+            "description": "Original description",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+    assert project.status_code == 201
+    project_id = project.json()["id"]
+
+    response = client.put(
+        f"/projects/{project_id}",
+        headers=head_headers,
+        json={
+            "name": "Updated By Team Head",
+            "description": "Updated by authorized Team Head",
+            "status": "active",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Updated By Team Head"
+
