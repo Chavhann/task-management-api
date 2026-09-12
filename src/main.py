@@ -341,6 +341,13 @@ def get_teams(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if current_user.role == "manager":
+        return (
+            db.query(models.Team)
+            .order_by(models.Team.id)
+            .all()
+        )
+
     teams = (
         db.query(models.Team)
         .outerjoin(
@@ -356,7 +363,6 @@ def get_teams(
     )
 
     return teams
-
 
 @app.get(
     "/teams/{team_id}",
@@ -2121,6 +2127,7 @@ def get_project_dashboard(
         recent_tasks=tasks[:10],
         recent_activity=recent_activity,
     )
+
 
 
 
