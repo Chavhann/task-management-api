@@ -1936,3 +1936,156 @@ def test_team_owner_cannot_be_removed(client):
     assert remove_response.status_code == 400
     assert remove_response.json()["detail"] == "The team owner cannot be removed"
 
+
+def test_manager_can_edit_any_team(client):
+    token, _ = create_test_task(client)
+
+    from src.database import get_db
+
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        test_user = (
+            test_db.query(models.User)
+            .filter(models.User.username == "testuser")
+            .first()
+        )
+        test_user.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    manager_headers = {"Authorization": f"Bearer {token}"}
+
+    # Create the first team.
+    team_a = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Team Alpha",
+            "description": "Alpha team",
+        },
+    )
+    assert team_a.status_code == 201
+
+    # Create a second manager to become the owner of Team Beta.
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "secondmanager",
+            "email": "secondmanager@example.com",
+            "password": "SecondManager2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    from src.database import get_db
+
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        second_manager = (
+            test_db.query(models.User)
+            .filter(models.User.username == "secondmanager")
+            .first()
+        )
+        second_manager.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    second_login = client.post(
+        "/login",
+        json={
+            "username": "secondmanager",
+            "password": "SecondManager2026!",
+        },
+    )
+    assert second_login.status_code == 200
+
+    second_headers = {
+        "Authorization": f"Bearer {second_login.json()['access_token']}"
+    }
+
+    # Second manager creates Team Beta.
+    team_b = client.post(
+        "/teams",
+        headers=second_headers,
+        json={
+            "name": "Team Beta",
+            "description": "Beta team",
+        },
+    )
+    assert team_b.status_code == 201
+    team_b_id = team_b.json()["id"]
+
+    # First manager edits a team owned by another manager.
+    update_response = client.put(
+        f"/teams/{team_b_id}",
+        headers=manager_headers,
+        json={
+            "name": "Team Beta Updated",
+            "description": "Updated by company manager",
+        },
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["name"] == "Team Beta Updated"
+    assert update_response.json()["description"] == "Updated by company manager"
+
+
+def test_regular_member_cannot_edit_team(client):
+    token, _ = create_test_task(client)
+    manager_headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Protected Team",
+            "description": "Protected team",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    add_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": 2, "role": "member"},
+    )
+    assert add_response.status_code == 201
+
+    alex_login = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert alex_login.status_code == 200
+
+    alex_headers = {
+        "Authorization": f"Bearer {alex_login.json()['access_token']}"
+    }
+
+    update_response = client.put(
+        f"/teams/{team_id}",
+        headers=alex_headers,
+        json={
+            "name": "Unauthorized Change",
+            "description": "Should not be allowed",
+        },
+    )
+
+    assert update_response.status_code == 403
