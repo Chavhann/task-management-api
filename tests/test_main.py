@@ -2203,3 +2203,150 @@ def test_regular_member_cannot_delete_team(client):
 
     assert delete_response.status_code == 404
 
+def test_manager_can_promote_member_to_team_head(client):
+    token, _ = create_test_task(client)
+
+    from src.database import get_db
+
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        test_user = (
+            test_db.query(models.User)
+            .filter(models.User.username == "testuser")
+            .first()
+        )
+        test_user.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    manager_headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Team Head Promotion",
+            "description": "Team head promotion test",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "headcandidate",
+            "email": "headcandidate@example.com",
+            "password": "HeadCandidate2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    add_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": 2, "role": "member"},
+    )
+    assert add_response.status_code == 201
+
+    update_response = client.put(
+        f"/teams/{team_id}/members/2",
+        headers=manager_headers,
+        json={"role": "team_head"},
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["role"] == "team_head"
+    assert update_response.json()["user_id"] == 2
+
+
+def test_manager_can_replace_team_head(client):
+    token, _ = create_test_task(client)
+
+    from src.database import get_db
+
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        test_user = (
+            test_db.query(models.User)
+            .filter(models.User.username == "testuser")
+            .first()
+        )
+        test_user.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    manager_headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Team Head Replacement",
+            "description": "Team head replacement test",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    first_user = client.post(
+        "/register",
+        json={
+            "username": "firsthead",
+            "email": "firsthead@example.com",
+            "password": "FirstHead2026!",
+        },
+    )
+    assert first_user.status_code == 201
+
+    second_user = client.post(
+        "/register",
+        json={
+            "username": "secondhead",
+            "email": "secondhead@example.com",
+            "password": "SecondHead2026!",
+        },
+    )
+    assert second_user.status_code == 201
+
+    add_first = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": 2, "role": "team_head"},
+    )
+    assert add_first.status_code == 201
+
+    add_second = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": 3, "role": "member"},
+    )
+    assert add_second.status_code == 201
+
+    replace_response = client.put(
+        f"/teams/{team_id}/members/3",
+        headers=manager_headers,
+        json={"role": "team_head"},
+    )
+
+    assert replace_response.status_code == 200
+    assert replace_response.json()["role"] == "team_head"
+    assert replace_response.json()["user_id"] == 3
+
+    members_response = client.get(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+    )
+    assert members_response.status_code == 200
+
+    members = members_response.json()
+    first_member = next(member for member in members if member["user_id"] == 2)
+    second_member = next(member for member in members if member["user_id"] == 3)
+
+    assert first_member["role"] == "member"
+    assert second_member["role"] == "team_head"
+

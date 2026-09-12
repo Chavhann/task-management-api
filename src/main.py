@@ -20,6 +20,7 @@ from src.schemas import (
     TaskUpdate,
     TeamCreate,
     TeamMemberCreate,
+    TeamMemberUpdate,
     TeamMemberResponse,
     TeamResponse,
     TokenResponse,
@@ -636,6 +637,105 @@ def get_team_members(
         }
         for membership, user in members
     ]
+
+
+@app.put(
+    "/teams/{team_id}/members/{user_id}",
+    response_model=TeamMemberResponse,
+)
+def update_team_member(
+    team_id: int,
+    user_id: int,
+    member_data: TeamMemberUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    team = (
+        db.query(models.Team)
+        .filter(models.Team.id == team_id)
+        .first()
+    )
+
+    if team is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
+        )
+
+    # Only company managers can assign elevated team roles.
+    if current_user.role != "manager":
+        membership = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == team_id,
+                models.TeamMember.user_id == current_user.id,
+                models.TeamMember.role.in_(["admin", "team_head"]),
+            )
+            .first()
+        )
+
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Team manager access required",
+            )
+
+        if member_data.role != "member":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only managers can assign elevated team roles",
+            )
+
+    membership = (
+        db.query(models.TeamMember)
+        .filter(
+            models.TeamMember.team_id == team_id,
+            models.TeamMember.user_id == user_id,
+        )
+        .first()
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this team",
+        )
+
+    # A team can have only one Team Head.
+    if member_data.role == "team_head":
+        existing_team_head = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == team_id,
+                models.TeamMember.role == "team_head",
+                models.TeamMember.user_id != user_id,
+            )
+            .first()
+        )
+
+        if existing_team_head:
+            existing_team_head.role = "member"
+
+    membership.role = member_data.role
+
+    db.commit()
+    db.refresh(membership)
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == user_id)
+        .first()
+    )
+
+    return {
+        "id": membership.id,
+        "team_id": membership.team_id,
+        "user_id": membership.user_id,
+        "username": user.username,
+        "email": user.email,
+        "role": membership.role,
+        "joined_at": membership.joined_at,
+    }
 
 
 @app.delete(

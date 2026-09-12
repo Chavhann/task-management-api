@@ -250,6 +250,12 @@ class TeamMemberCreate(BaseModel):
     )
 
 
+class TeamMemberUpdate(BaseModel):
+    role: str = Field(
+        pattern="^(member|admin|team_head)$",
+    )
+
+
 class TeamMemberResponse(BaseModel):
     id: int
     team_id: int
