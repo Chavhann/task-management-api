@@ -1720,3 +1720,179 @@ def test_project_dashboard_returns_real_project_data(client):
 
 
     
+def test_manager_can_add_and_remove_team_member(client):
+    token, _ = create_test_task(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=headers,
+        json={
+            "name": "Manager Authorization Team",
+            "description": "Testing manager team permissions",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    add_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=headers,
+        json={"user_id": 2, "role": "member"},
+    )
+    assert add_response.status_code == 201
+
+    remove_response = client.delete(
+        f"/teams/{team_id}/members/2",
+        headers=headers,
+    )
+    assert remove_response.status_code == 204
+
+
+def test_regular_member_cannot_manage_team_members(client):
+    token, _ = create_test_task(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=headers,
+        json={
+            "name": "Member Management Authorization Team",
+            "description": "Testing member restrictions",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    add_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=headers,
+        json={"user_id": 2, "role": "member"},
+    )
+    assert add_response.status_code == 201
+
+    alex_login_response = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert alex_login_response.status_code == 200
+
+    alex_headers = {
+        "Authorization": f"Bearer {alex_login_response.json()['access_token']}"
+    }
+
+    add_again_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=alex_headers,
+        json={"user_id": 1, "role": "member"},
+    )
+    assert add_again_response.status_code == 403
+
+    remove_response = client.delete(
+        f"/teams/{team_id}/members/1",
+        headers=alex_headers,
+    )
+    assert remove_response.status_code == 403
+
+
+def test_team_head_can_manage_team_members(client):
+    token, _ = create_test_task(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=headers,
+        json={
+            "name": "Team Head Authorization Team",
+            "description": "Testing team head permissions",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    add_head_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=headers,
+        json={"user_id": 2, "role": "team_head"},
+    )
+    assert add_head_response.status_code == 201
+
+    alex_login_response = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert alex_login_response.status_code == 200
+
+    alex_headers = {
+        "Authorization": f"Bearer {alex_login_response.json()['access_token']}"
+    }
+
+    add_member_response = client.post(
+        f"/teams/{team_id}/members",
+        headers=alex_headers,
+        json={"user_id": 1, "role": "member"},
+    )
+
+    # The team owner is already a member, so this should reach
+    # authorization first and succeed past the permission check.
+    assert add_member_response.status_code == 400
+
+
+def test_team_owner_cannot_be_removed(client):
+    token, _ = create_test_task(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    team_response = client.post(
+        "/teams",
+        headers=headers,
+        json={
+            "name": "Owner Protection Team",
+            "description": "Testing owner protection",
+        },
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    remove_response = client.delete(
+        f"/teams/{team_id}/members/1",
+        headers=headers,
+    )
+
+    assert remove_response.status_code == 400
+    assert remove_response.json()["detail"] == "The team owner cannot be removed"
