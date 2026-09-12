@@ -403,10 +403,28 @@ class ProjectDashboardResponse(BaseModel):
     recent_tasks: list[TaskResponse]
     recent_activity: list[ActivityResponse]
 
+class ManagerTeamSummary(BaseModel):
+    team_id: int
+    team_name: str
+    member_count: int
+    project_count: int
+    total_tasks: int
+    completed_tasks: int
+    in_progress_tasks: int
+    overdue_tasks: int
+    progress: int
 
 
-
-
-
-
+class ManagerDashboardResponse(BaseModel):
+    total_teams: int
+    total_members: int
+    total_projects: int
+    total_tasks: int
+    completed_tasks: int
+    todo_tasks: int
+    in_progress_tasks: int
+    in_review_tasks: int
+    overdue_tasks: int
+    progress: int
+    teams: list[ManagerTeamSummary]
 

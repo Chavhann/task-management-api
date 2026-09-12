@@ -35,6 +35,8 @@ from src.schemas import (
     NotificationReadUpdate,
     ProjectOverviewResponse,
     ProjectDashboardResponse,
+    ManagerTeamSummary,
+    ManagerDashboardResponse,
 )
 from src.security import create_access_token, hash_password, verify_password
 
@@ -2325,5 +2327,131 @@ def get_project_dashboard(
         total_subtasks=total_subtasks,
         recent_tasks=tasks[:10],
         recent_activity=recent_activity,
+    )
+
+@app.get(
+    "/manager/dashboard",
+    response_model=ManagerDashboardResponse,
+)
+def get_manager_dashboard(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manager access required",
+        )
+
+    teams = (
+        db.query(models.Team)
+        .order_by(models.Team.id)
+        .all()
+    )
+
+    total_members = 0
+    total_projects = 0
+    total_tasks = 0
+    completed_tasks = 0
+    todo_tasks = 0
+    in_progress_tasks = 0
+    in_review_tasks = 0
+    overdue_tasks = 0
+
+    team_summaries = []
+
+    today = date.today()
+
+    for team in teams:
+        members = (
+            db.query(models.TeamMember)
+            .filter(models.TeamMember.team_id == team.id)
+            .all()
+        )
+
+        projects = (
+            db.query(models.Project)
+            .filter(models.Project.team_id == team.id)
+            .all()
+        )
+
+        project_ids = [project.id for project in projects]
+
+        tasks = []
+        if project_ids:
+            tasks = (
+                db.query(models.Task)
+                .filter(models.Task.project_id.in_(project_ids))
+                .all()
+            )
+
+        team_completed = sum(
+            1 for task in tasks if task.status == "completed"
+        )
+        team_todo = sum(
+            1 for task in tasks if task.status == "todo"
+        )
+        team_in_progress = sum(
+            1 for task in tasks if task.status == "in_progress"
+        )
+        team_overdue = sum(
+            1
+            for task in tasks
+            if task.due_date is not None
+            and task.due_date < today
+            and task.status != "completed"
+        )
+
+        team_total_tasks = len(tasks)
+
+        team_progress = (
+            round((team_completed / team_total_tasks) * 100)
+            if team_total_tasks
+            else 0
+        )
+
+        total_members += len(members)
+        total_projects += len(projects)
+        total_tasks += team_total_tasks
+        completed_tasks += team_completed
+        todo_tasks += team_todo
+        in_progress_tasks += team_in_progress
+        in_review_tasks += sum(
+            1 for task in tasks if task.status == "in_review"
+        )
+        overdue_tasks += team_overdue
+
+        team_summaries.append(
+            ManagerTeamSummary(
+                team_id=team.id,
+                team_name=team.name,
+                member_count=len(members),
+                project_count=len(projects),
+                total_tasks=team_total_tasks,
+                completed_tasks=team_completed,
+                in_progress_tasks=team_in_progress,
+                overdue_tasks=team_overdue,
+                progress=team_progress,
+            )
+        )
+
+    progress = (
+        round((completed_tasks / total_tasks) * 100)
+        if total_tasks
+        else 0
+    )
+
+    return ManagerDashboardResponse(
+        total_teams=len(teams),
+        total_members=total_members,
+        total_projects=total_projects,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        todo_tasks=todo_tasks,
+        in_progress_tasks=in_progress_tasks,
+        in_review_tasks=in_review_tasks,
+        overdue_tasks=overdue_tasks,
+        progress=progress,
+        teams=team_summaries,
     )
 

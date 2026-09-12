@@ -2800,3 +2800,61 @@ def test_team_head_can_delete_team_task(client, manager_token):
     )
     assert verify.status_code == 404
 
+def test_manager_can_access_manager_dashboard(client, manager_token):
+    headers = {"Authorization": f"Bearer {manager_token}"}
+
+    response = client.get(
+        "/manager/dashboard",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "total_teams" in data
+    assert "total_members" in data
+    assert "total_projects" in data
+    assert "total_tasks" in data
+    assert "completed_tasks" in data
+    assert "progress" in data
+    assert "teams" in data
+
+    assert isinstance(data["teams"], list)
+
+
+def test_regular_member_cannot_access_manager_dashboard(
+    client,
+    manager_token,
+):
+    register = client.post(
+        "/register",
+        json={
+            "username": "dashboardmember",
+            "email": "dashboardmember@example.com",
+            "password": "DashboardMember2026!",
+        },
+    )
+    assert register.status_code == 201
+
+    login = client.post(
+        "/login",
+        json={
+            "username": "dashboardmember",
+            "password": "DashboardMember2026!",
+        },
+    )
+    assert login.status_code == 200
+
+    member_headers = {
+        "Authorization": f"Bearer {login.json()['access_token']}"
+    }
+
+    response = client.get(
+        "/manager/dashboard",
+        headers=member_headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Manager access required"
+
