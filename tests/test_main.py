@@ -2350,3 +2350,77 @@ def test_manager_can_replace_team_head(client):
     assert first_member["role"] == "member"
     assert second_member["role"] == "team_head"
 
+def test_team_head_cannot_access_another_team(client, manager_token):
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+
+    # Create Team A.
+    team_a_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Team Head Scope A",
+            "description": "Team head scope test A",
+        },
+    )
+    assert team_a_response.status_code == 201
+    team_a_id = team_a_response.json()["id"]
+
+    # Create Team B.
+    team_b_response = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Team Head Scope B",
+            "description": "Team head scope test B",
+        },
+    )
+    assert team_b_response.status_code == 201
+    team_b_id = team_b_response.json()["id"]
+
+    # Register Alex for this isolated test database.
+    register_alex = client.post(
+        "/register",
+        json={
+            "username": "alex",
+            "email": "alex@example.com",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert register_alex.status_code == 201
+
+    # Add Alex to Team A as Team Head.
+    add_head_response = client.post(
+        f"/teams/{team_a_id}/members",
+        headers=manager_headers,
+        json={"user_id": 2, "role": "team_head"},
+    )
+    assert add_head_response.status_code == 201
+
+    alex_login = client.post(
+        "/login",
+        json={
+            "username": "alex",
+            "password": "AlexTest2026!",
+        },
+    )
+    assert alex_login.status_code == 200
+
+    alex_headers = {
+        "Authorization": f"Bearer {alex_login.json()['access_token']}"
+    }
+
+    # Team Head can access their own team.
+    own_team_response = client.get(
+        f"/teams/{team_a_id}",
+        headers=alex_headers,
+    )
+    assert own_team_response.status_code == 200
+    assert own_team_response.json()["id"] == team_a_id
+
+    # Team Head cannot access another team.
+    other_team_response = client.get(
+        f"/teams/{team_b_id}",
+        headers=alex_headers,
+    )
+    assert other_team_response.status_code == 404
+
