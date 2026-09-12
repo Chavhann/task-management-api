@@ -2639,3 +2639,164 @@ def test_team_head_can_update_project_in_own_team(client, manager_token):
     assert response.status_code == 200
     assert response.json()["name"] == "Updated By Team Head"
 
+def test_team_head_can_update_team_task(client, manager_token):
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+
+    team = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Task Update Team",
+            "description": "Team Head task update test",
+        },
+    )
+    assert team.status_code == 201
+    team_id = team.json()["id"]
+
+    register_head = client.post(
+        "/register",
+        json={
+            "username": "taskupdatehead",
+            "email": "taskupdatehead@example.com",
+            "password": "TaskUpdateHead2026!",
+        },
+    )
+    assert register_head.status_code == 201
+    head_id = register_head.json()["id"]
+
+    login = client.post(
+        "/login",
+        json={
+            "username": "taskupdatehead",
+            "password": "TaskUpdateHead2026!",
+        },
+    )
+    assert login.status_code == 200
+    head_headers = {
+        "Authorization": f"Bearer {login.json()['access_token']}"
+    }
+
+    add_head = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": head_id, "role": "team_head"},
+    )
+    assert add_head.status_code == 201
+
+    project = client.post(
+        "/projects",
+        headers=manager_headers,
+        json={
+            "name": "Team Task Project",
+            "description": "Task authorization test",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+    assert project.status_code == 201
+    project_id = project.json()["id"]
+
+    task = client.post(
+        "/tasks",
+        headers=manager_headers,
+        json={
+            "title": "Original Team Task",
+            "description": "Original task",
+            "project_id": project_id,
+        },
+    )
+    assert task.status_code == 201
+    task_id = task.json()["id"]
+
+    response = client.put(
+        f"/tasks/{task_id}",
+        headers=head_headers,
+        json={"title": "Updated By Team Head"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Updated By Team Head"
+
+
+def test_team_head_can_delete_team_task(client, manager_token):
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+
+    team = client.post(
+        "/teams",
+        headers=manager_headers,
+        json={
+            "name": "Task Delete Team",
+            "description": "Team Head task delete test",
+        },
+    )
+    assert team.status_code == 201
+    team_id = team.json()["id"]
+
+    register_head = client.post(
+        "/register",
+        json={
+            "username": "taskdeletehead",
+            "email": "taskdeletehead@example.com",
+            "password": "TaskDeleteHead2026!",
+        },
+    )
+    assert register_head.status_code == 201
+    head_id = register_head.json()["id"]
+
+    login = client.post(
+        "/login",
+        json={
+            "username": "taskdeletehead",
+            "password": "TaskDeleteHead2026!",
+        },
+    )
+    assert login.status_code == 200
+    head_headers = {
+        "Authorization": f"Bearer {login.json()['access_token']}"
+    }
+
+    add_head = client.post(
+        f"/teams/{team_id}/members",
+        headers=manager_headers,
+        json={"user_id": head_id, "role": "team_head"},
+    )
+    assert add_head.status_code == 201
+
+    project = client.post(
+        "/projects",
+        headers=manager_headers,
+        json={
+            "name": "Delete Task Project",
+            "description": "Task delete authorization test",
+            "status": "active",
+            "team_id": team_id,
+        },
+    )
+    assert project.status_code == 201
+    project_id = project.json()["id"]
+
+    task = client.post(
+        "/tasks",
+        headers=manager_headers,
+        json={
+            "title": "Task To Delete",
+            "description": "Delete this task",
+            "project_id": project_id,
+        },
+    )
+    assert task.status_code == 201
+    task_id = task.json()["id"]
+
+    response = client.delete(
+        f"/tasks/{task_id}",
+        headers=head_headers,
+    )
+
+    assert response.status_code == 204
+
+    verify = client.get(
+        f"/tasks/{task_id}",
+        headers=manager_headers,
+    )
+    assert verify.status_code == 404
+

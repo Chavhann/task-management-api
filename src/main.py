@@ -1477,6 +1477,18 @@ def update_task(
 
                 if team is not None and team.owner_id == current_user.id:
                     can_modify = True
+                elif team is not None:
+                    team_membership = (
+                        db.query(models.TeamMember)
+                        .filter(
+                            models.TeamMember.team_id == team.id,
+                            models.TeamMember.user_id == current_user.id,
+                            models.TeamMember.role == "team_head",
+                        )
+                        .first()
+                    )
+                    if team_membership is not None:
+                        can_modify = True
 
     if not can_modify and task.assignee_id == current_user.id:
         can_modify = True
@@ -1642,6 +1654,18 @@ def delete_task(
 
                 if team is not None and team.owner_id == current_user.id:
                     can_delete = True
+                elif team is not None:
+                    team_membership = (
+                        db.query(models.TeamMember)
+                        .filter(
+                            models.TeamMember.team_id == team.id,
+                            models.TeamMember.user_id == current_user.id,
+                            models.TeamMember.role == "team_head",
+                        )
+                        .first()
+                    )
+                    if team_membership is not None:
+                        can_delete = True
 
     if not can_delete:
         raise HTTPException(
