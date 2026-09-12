@@ -1368,13 +1368,19 @@ useEffect(() => {
         <header className="topbar">
           <div>
             <h1>
-              {projectDashboard?.project_name || "My Tasks"}
+              {showManagerDashboard
+                ? "Company Dashboard"
+                : projectDashboard?.project_name || "My Tasks"}
             </h1>
 
             <p>
-              {projectDashboard
-                ? "Project overview and progress."
-                : "Stay organized and make progress every day."}
+              {showManagerDashboard
+                ? "Company-wide teams, projects, and performance."
+                : projectDashboard
+                  ? "Project overview and progress."
+                  : isTeamHead
+                    ? "Team Head workspace ? manage your team and track progress."
+                    : "Stay organized and make progress every day."}
             </p>
           </div>
 
