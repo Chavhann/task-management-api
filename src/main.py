@@ -489,7 +489,9 @@ def add_team_member(
             detail="Team not found",
         )
 
-    if current_user.role != "manager":
+    is_manager = current_user.role == "manager"
+
+    if not is_manager:
         membership = (
             db.query(models.TeamMember)
             .filter(
@@ -504,6 +506,12 @@ def add_team_member(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Team manager access required",
+            )
+
+        if member_data.role != "member":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only managers can assign elevated team roles",
             )
 
     user = (
@@ -533,6 +541,22 @@ def add_team_member(
             detail="User is already a member of this team",
         )
 
+    if member_data.role == "team_head":
+        existing_team_head = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == team_id,
+                models.TeamMember.role == "team_head",
+            )
+            .first()
+        )
+
+        if existing_team_head:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This team already has a team head",
+            )
+
     new_member = models.TeamMember(
         team_id=team_id,
         user_id=member_data.user_id,
@@ -552,7 +576,6 @@ def add_team_member(
         "role": new_member.role,
         "joined_at": new_member.joined_at,
     }
-
 
 @app.get(
     "/teams/{team_id}/members",
@@ -2127,13 +2150,4 @@ def get_project_dashboard(
         recent_tasks=tasks[:10],
         recent_activity=recent_activity,
     )
-
-
-
-
-
-
-
-
-
 

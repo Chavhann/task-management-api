@@ -1,10 +1,11 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.database import Base, get_db
 from src.main import app
+from src import models
 
 
 @pytest.fixture
@@ -38,6 +39,44 @@ def client(tmp_path):
 
     app.dependency_overrides.clear()
 
+
+@pytest.fixture
+def manager_token(client):
+    register_response = client.post(
+        "/register",
+        json={
+            "username": "manager",
+            "email": "manager@example.com",
+            "password": "ManagerTest2026!",
+        },
+    )
+    assert register_response.status_code == 201
+
+    db = models
+    from src.database import get_db
+
+    # The test API intentionally does not allow self-assigned manager roles.
+    # Promote the test-only manager directly in the isolated test database.
+    original_override = app.dependency_overrides[get_db]
+    test_db = next(original_override())
+    try:
+        manager_user = test_db.query(models.User).filter(
+            models.User.username == "manager"
+        ).first()
+        manager_user.role = "manager"
+        test_db.commit()
+    finally:
+        test_db.close()
+
+    login_response = client.post(
+        "/login",
+        json={
+            "username": "manager",
+            "password": "ManagerTest2026!",
+        },
+    )
+    assert login_response.status_code == 200
+    return login_response.json()["access_token"]
 
 def register_user(
     client,
@@ -1818,8 +1857,8 @@ def test_regular_member_cannot_manage_team_members(client):
     assert remove_response.status_code == 403
 
 
-def test_team_head_can_manage_team_members(client):
-    token, _ = create_test_task(client)
+def test_team_head_can_manage_team_members(client, manager_token):
+    token = manager_token
     headers = {"Authorization": f"Bearer {token}"}
 
     team_response = client.post(
@@ -1896,3 +1935,4 @@ def test_team_owner_cannot_be_removed(client):
 
     assert remove_response.status_code == 400
     assert remove_response.json()["detail"] == "The team owner cannot be removed"
+
