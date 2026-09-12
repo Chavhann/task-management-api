@@ -258,6 +258,46 @@ def search_users(
 
 
 # -------------------------
+# Project helpers
+# -------------------------
+
+def get_user_project(
+    project_id: int,
+    current_user: models.User,
+    db: Session,
+):
+    project = (
+        db.query(models.Project)
+        .filter(models.Project.id == project_id)
+        .first()
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    if current_user.role == "manager":
+        return project
+
+    team_member = (
+        db.query(models.TeamMember)
+        .filter(
+            models.TeamMember.team_id == project.team_id,
+            models.TeamMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if project.owner_id != current_user.id and team_member is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project access denied",
+        )
+
+    return project
+
 # Teams
 # -------------------------
 
@@ -575,18 +615,32 @@ def remove_team_member(
 ):
     team = (
         db.query(models.Team)
-        .filter(
-            models.Team.id == team_id,
-            models.Team.owner_id == current_user.id,
-        )
+        .filter(models.Team.id == team_id)
         .first()
     )
 
     if team is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Team not found or you are not the team owner",
+            detail="Team not found",
         )
+
+    if current_user.role != "manager":
+        membership = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == team_id,
+                models.TeamMember.user_id == current_user.id,
+                models.TeamMember.role.in_(["admin", "team_head"]),
+            )
+            .first()
+        )
+
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Team manager access required",
+            )
 
     if user_id == team.owner_id:
         raise HTTPException(
@@ -613,44 +667,6 @@ def remove_team_member(
     db.commit()
 
     return None
-
-
-# -------------------------
-# Project helpers
-# -------------------------
-
-def get_user_project(
-    project_id: int,
-    current_user: models.User,
-    db: Session,
-):
-    project = (
-        db.query(models.Project)
-        .join(
-            models.Team,
-            models.Project.team_id == models.Team.id,
-        )
-        .outerjoin(
-            models.TeamMember,
-            models.TeamMember.team_id == models.Team.id,
-        )
-        .filter(
-            models.Project.id == project_id,
-            (
-                (models.Project.owner_id == current_user.id)
-                | (models.Team.owner_id == current_user.id)
-                | (models.TeamMember.user_id == current_user.id)
-            ),
-        )
-        .first()
-    )
-
-    return project
-
-
-# -------------------------
-# Projects
-# -------------------------
 
 @app.post(
     "/projects",
@@ -2105,6 +2121,8 @@ def get_project_dashboard(
         recent_tasks=tasks[:10],
         recent_activity=recent_activity,
     )
+
+
 
 
 
