@@ -376,21 +376,31 @@ def get_team(
 ):
     team = (
         db.query(models.Team)
-        .outerjoin(
-            models.TeamMember,
-            models.TeamMember.team_id == models.Team.id,
-        )
-        .filter(
-            models.Team.id == team_id,
-            (
-                (models.Team.owner_id == current_user.id)
-                | (models.TeamMember.user_id == current_user.id)
-            ),
-        )
+        .filter(models.Team.id == team_id)
         .first()
     )
 
     if team is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
+        )
+
+    # Company managers can view every team.
+    if current_user.role == "manager":
+        return team
+
+    # Other users can only view teams they own or belong to.
+    membership = (
+        db.query(models.TeamMember)
+        .filter(
+            models.TeamMember.team_id == team_id,
+            models.TeamMember.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if team.owner_id != current_user.id and membership is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Team not found",
@@ -595,17 +605,7 @@ def get_team_members(
 ):
     team = (
         db.query(models.Team)
-        .outerjoin(
-            models.TeamMember,
-            models.TeamMember.team_id == models.Team.id,
-        )
-        .filter(
-            models.Team.id == team_id,
-            (
-                (models.Team.owner_id == current_user.id)
-                | (models.TeamMember.user_id == current_user.id)
-            ),
-        )
+        .filter(models.Team.id == team_id)
         .first()
     )
 
@@ -614,6 +614,23 @@ def get_team_members(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Team not found",
         )
+
+    # Company managers can view members of every team.
+    if current_user.role != "manager":
+        membership = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.team_id == team_id,
+                models.TeamMember.user_id == current_user.id,
+            )
+            .first()
+        )
+
+        if team.owner_id != current_user.id and membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Team not found",
+            )
 
     members = (
         db.query(models.TeamMember, models.User)
