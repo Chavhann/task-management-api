@@ -1,61 +1,56 @@
 ﻿# TaskFlow — Full-Stack Task & Project Management Platform
 
+![Python](https://img.shields.io/badge/Python-3.x-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-REST-green)
+![React](https://img.shields.io/badge/React-Frontend-61DAFB)
+![SQLite](https://img.shields.io/badge/Database-SQLite-003B57)
+![Tests](https://img.shields.io/badge/Tests-58%20passed-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 TaskFlow is a full-stack task and project management platform built with **FastAPI, React, SQLAlchemy, and SQLite**.
 
-It provides secure authentication, role-based access control, team collaboration, project management, task tracking, progress monitoring, notifications, comments, subtasks, and a company-level manager dashboard.
+It combines secure authentication, role-based access control, team collaboration, project management, task tracking, progress monitoring, notifications, comments, subtasks, Kanban workflow, calendar views, and a company-level manager dashboard.
 
 ## Features
 
 ### Authentication & Security
-
 - User registration and login
 - JWT-based authentication
 - Secure password hashing with bcrypt
-- Authenticated user profile
 - Protected API endpoints
 - Role-based authorization
-- Request validation with Pydantic
-- HTTP error handling
+- Request validation
+- Cross-team access isolation
 
 ### Team Management
-
 - Create and manage teams
 - Add and remove team members
-- Team membership management
 - Member, Team Head, and Admin roles
 - Manager-level team administration
-- Team member isolation
-- Protected cross-team access
+- Protected role assignment
+- Duplicate membership protection
 
 ### Task Management
-
-- Create, view, update, and delete tasks
-- Assign tasks to users
-- Task priorities
-- Task categories
+- Full task CRUD
+- Task assignment
+- Priorities and categories
 - Due dates
 - Completion tracking
-- Overdue task detection
-- Task search and filtering
+- Overdue detection
+- Search and filtering
 - Subtasks
-- Task progress tracking
+- Progress tracking
 
 ### Project Management
-
-- Create and manage projects
+- Full project CRUD
 - Project ownership
 - Project status
 - Start and due dates
 - Team-based projects
-- Project overview
-- Project progress tracking
-- Project dashboard
-- Role-based project authorization
+- Project overview and progress
+- Role-based authorization
 
 ### Manager Dashboard
-
-Managers can view company-level performance information including:
-
 - Total teams
 - Total members
 - Total projects
@@ -65,7 +60,7 @@ Managers can view company-level performance information including:
 - In-progress tasks
 - In-review tasks
 - Overdue tasks
-- Overall completion progress
+- Overall progress
 - Team performance summaries
 
 ### Role-Based Workspace
@@ -76,19 +71,15 @@ Managers can view company-level performance information including:
 | **Team Head** | Manage team members, team projects, and team tasks |
 | **Member** | Work with assigned tasks and projects |
 
-Authorization is enforced by the backend rather than relying only on frontend restrictions.
-
 ### Collaboration
-
 - Task comments
-- Comment updates
-- Comment deletion
+- Comment updates and deletion
 - Activity tracking
 - User notifications
 - Notification read/unread state
+- Subtasks and progress tracking
 
 ### Frontend
-
 - Dashboard
 - Task table
 - Kanban workflow
@@ -97,15 +88,13 @@ Authorization is enforced by the backend rather than relying only on frontend re
 - Team workspace
 - Notifications
 - Comments
-- Subtasks and progress tracking
 - Search and filtering
 - Role-aware navigation
 - Responsive interface
 
 ## Tech Stack
 
-### Backend
-
+**Backend**
 - Python
 - FastAPI
 - Uvicorn
@@ -118,8 +107,7 @@ Authorization is enforced by the backend rather than relying only on frontend re
 - pytest
 - HTTPX
 
-### Frontend
-
+**Frontend**
 - React
 - Vite
 - JavaScript
@@ -129,238 +117,218 @@ Authorization is enforced by the backend rather than relying only on frontend re
 
 ## Architecture
 
-```text
-React + Vite
-     |
-     | HTTP / REST
-     v
-FastAPI
-     |
-     +-- Authentication
-     +-- Authorization
-     +-- Teams
-     +-- Projects
-     +-- Tasks
-     +-- Comments
-     +-- Notifications
-     |
-     v
-SQLAlchemy
-     |
-     v
-SQLite
-Project Structure
-task-management-api/
-|
-+-- src/
-|   +-- __init__.py
-|   +-- auth.py
-|   +-- database.py
-|   +-- main.py
-|   +-- models.py
-|   +-- schemas.py
-|   +-- security.py
-|
-+-- tests/
-|   +-- test_main.py
-|
-+-- frontend/
-|   +-- src/
-|   |   +-- App.jsx
-|   |   +-- App.css
-|   |   +-- ...
-|   +-- package.json
-|   +-- ...
-|
-+-- .gitignore
-+-- README.md
-+-- requirements.txt
-Installation
-Clone the Repository
-git clone https://github.com/Chavhann/task-management-api.git
-cd task-management-api
-Backend Setup
+    React + Vite
+         |
+         | HTTP / REST
+         v
+       FastAPI
+         |
+    +----+----+-------------+
+    |         |             |
+    Auth   Authorization   API
+    |         |             |
+    +---------+-------------+
+              |
+         SQLAlchemy
+              |
+              v
+            SQLite
 
-Create a virtual environment:
+## Project Structure
 
-python -m venv .venv
+    task-management-api/
+    ├── src/
+    │   ├── __init__.py
+    │   ├── auth.py
+    │   ├── database.py
+    │   ├── main.py
+    │   ├── models.py
+    │   ├── schemas.py
+    │   └── security.py
+    ├── tests/
+    │   └── test_main.py
+    ├── frontend/
+    │   ├── src/
+    │   │   ├── App.jsx
+    │   │   ├── App.css
+    │   │   └── ...
+    │   ├── package.json
+    │   └── ...
+    ├── .gitignore
+    ├── README.md
+    └── requirements.txt
 
-Activate it on Windows:
+## Installation
 
-.venv\Scripts\Activate.ps1
+### Clone
 
-Install dependencies:
+    git clone https://github.com/Chavhann/task-management-api.git
+    cd task-management-api
 
-pip install -r requirements.txt
+### Backend
 
-Start the backend:
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
+    uvicorn src.main:app --reload
 
-uvicorn src.main:app --reload
+Backend: `http://127.0.0.1:8000`
 
-Backend:
-
-http://127.0.0.1:8000
-Frontend Setup
+### Frontend
 
 Open another terminal:
 
-cd frontend
-npm install
-npm run dev
+    cd frontend
+    npm install
+    npm run dev
 
-Frontend:
+Frontend: `http://localhost:5173`
 
-http://localhost:5173
-API Documentation
-Swagger UI
-http://127.0.0.1:8000/docs
-ReDoc
-http://127.0.0.1:8000/redoc
-OpenAPI
-http://127.0.0.1:8000/openapi.json
-Testing
+## API Documentation
 
-Run the backend test suite:
+Once the backend is running:
 
-pytest -q
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+- OpenAPI: `http://127.0.0.1:8000/openapi.json`
+
+## Testing
+
+Run:
+
+    pytest -q
 
 Current verification:
 
-58 tests passed
-Frontend production build successful
-Git working tree clean
-Authorization Model
+**58 tests passed**
+
+Frontend production build:
+
+    npm --prefix frontend run build
+
+## Authorization Model
 
 TaskFlow uses two levels of roles.
 
-Company-Level Role
-Manager
-Member
-Team-Level Role
-Admin
-Team Head
-Member
+**Company roles**
+- Manager
+- Member
+
+**Team roles**
+- Admin
+- Team Head
+- Member
 
 This separates company-wide responsibilities from team-specific permissions.
 
-Example:
+    Company
+    ├── Manager
+    │
+    ├── Team Cyberpunk
+    │   ├── Admin
+    │   ├── Team Head
+    │   └── Members
+    │
+    └── Other Teams
+        ├── Team Head
+        └── Members
 
-Company
-|
-+-- Manager
-|
-+-- Team Cyberpunk
-|   +-- Admin
-|   +-- Team Head
-|   +-- Members
-|
-+-- Other Teams
-    +-- Team Head
-    +-- Members
+Backend authorization prevents users from bypassing permission restrictions through protected API endpoints.
 
-Backend authorization prevents users from bypassing permission restrictions by directly calling protected API endpoints.
+## Security
 
-Security
-JWT access tokens
-Password hashing
-Protected API routes
-Role-based authorization
-Team-level authorization
-Project access control
-Task access control
-Cross-team isolation
-Input validation
-Duplicate membership protection
-Protected role assignment
-API Overview
-Authentication
-+-- POST /register
-+-- POST /login
-+-- GET  /me
+- JWT access tokens
+- Password hashing
+- Protected API routes
+- Role-based authorization
+- Team-level authorization
+- Project access control
+- Task access control
+- Cross-team isolation
+- Input validation
+- Duplicate membership protection
+- Protected role assignment
 
-Teams
-+-- GET    /teams
-+-- POST   /teams
-+-- GET    /teams/{team_id}
-+-- PUT    /teams/{team_id}
-+-- DELETE /teams/{team_id}
+## API Overview
 
-Projects
-+-- GET    /projects
-+-- POST   /projects
-+-- GET    /projects/{project_id}
-+-- PUT    /projects/{project_id}
-+-- DELETE /projects/{project_id}
+**Authentication**
+- `POST /register`
+- `POST /login`
+- `GET /me`
 
-Tasks
-+-- GET    /tasks
-+-- POST   /tasks
-+-- GET    /tasks/{task_id}
-+-- PUT    /tasks/{task_id}
-+-- DELETE /tasks/{task_id}
+**Teams**
+- `GET /teams`
+- `POST /teams`
+- `GET /teams/{team_id}`
+- `PUT /teams/{team_id}`
+- `DELETE /teams/{team_id}`
 
-Collaboration
-+-- Comments
-+-- Notifications
-+-- Activities
-+-- Subtasks
+**Team Members**
+- `GET /teams/{team_id}/members`
+- `POST /teams/{team_id}/members`
+- `PUT /teams/{team_id}/members/{user_id}`
+- `DELETE /teams/{team_id}/members/{user_id}`
 
-Management
-+-- GET /manager/dashboard
-Project Goals
+**Projects**
+- `GET /projects`
+- `POST /projects`
+- `GET /projects/{project_id}`
+- `PUT /projects/{project_id}`
+- `DELETE /projects/{project_id}`
 
-TaskFlow demonstrates practical full-stack development skills including:
+**Tasks**
+- `GET /tasks`
+- `POST /tasks`
+- `GET /tasks/{task_id}`
+- `PUT /tasks/{task_id}`
+- `DELETE /tasks/{task_id}`
 
-REST API development
-Backend architecture
-Database modeling
-Authentication
-Authorization
-Role-based access control
-React frontend development
-API integration
-Team collaboration workflows
-Automated testing
-Git and GitHub workflow
-What Makes TaskFlow Different
+**Management**
+- `GET /manager/dashboard`
 
-TaskFlow goes beyond basic CRUD by implementing multiple levels of authorization:
+## What Makes TaskFlow Different
 
-Company Permissions
-        +
-Team Permissions
-        +
-Project Permissions
-        +
-Task Permissions
+TaskFlow goes beyond basic CRUD by implementing multiple authorization layers:
+
+    Company Permissions
+            +
+       Team Permissions
+            +
+     Project Permissions
+            +
+       Task Permissions
 
 This creates a realistic foundation for collaborative productivity software.
 
-Status
-Backend API — Complete
-Authentication — Complete
-JWT Security — Complete
-Task CRUD — Complete
-Project Management — Complete
-Team Management — Complete
-Role-Based Access — Complete
-Team Head Controls — Complete
-Manager Dashboard — Complete
-Notifications — Complete
-Comments — Complete
-Subtasks — Complete
-Progress Tracking — Complete
-React Frontend — Complete
-Kanban — Complete
-Calendar — Complete
-Automated Tests — Complete
-Production Build — Complete
-Author
+## Project Status
 
-Ganesh Chavhan
+| Component | Status |
+|---|---|
+| Backend API | Complete |
+| Authentication | Complete |
+| JWT Security | Complete |
+| Task CRUD | Complete |
+| Project Management | Complete |
+| Team Management | Complete |
+| Role-Based Access | Complete |
+| Team Head Controls | Complete |
+| Manager Dashboard | Complete |
+| Notifications | Complete |
+| Comments | Complete |
+| Subtasks | Complete |
+| Progress Tracking | Complete |
+| React Frontend | Complete |
+| Kanban | Complete |
+| Calendar | Complete |
+| Automated Tests | Complete |
+| Production Build | Complete |
+
+## Author
+
+**Ganesh Chavhan**
 
 GitHub: https://github.com/Chavhann
 
-License
+## License
 
-This project is available under the MIT License.
+This project is licensed under the MIT License.
