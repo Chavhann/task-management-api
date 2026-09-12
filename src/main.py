@@ -1026,6 +1026,8 @@ def update_project(
 
     # Company managers, project owners, team owners, and team heads
     # can modify projects within their authorized team scope.
+    source_team_membership = None
+
     if current_user.role != "manager" and project.owner_id != current_user.id:
         if team is None:
             raise HTTPException(
@@ -1033,7 +1035,7 @@ def update_project(
                 detail="You do not have permission to modify this project",
             )
 
-        team_membership = (
+        source_team_membership = (
             db.query(models.TeamMember)
             .filter(
                 models.TeamMember.team_id == project.team_id,
@@ -1043,8 +1045,8 @@ def update_project(
         )
 
         if team.owner_id != current_user.id and (
-            team_membership is None
-            or team_membership.role != "team_head"
+            source_team_membership is None
+            or source_team_membership.role != "team_head"
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1072,7 +1074,8 @@ def update_project(
     # Team Heads may manage projects only within their own team.
     if (
         current_user.role != "manager"
-        and membership.role == "team_head"
+        and source_team_membership is not None
+        and source_team_membership.role == "team_head"
         and new_team_id != project.team_id
     ):
         raise HTTPException(

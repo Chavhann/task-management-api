@@ -124,6 +124,32 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(false);
+  const [managerDashboard, setManagerDashboard] = useState(null);
+  const [managerDashboardLoading, setManagerDashboardLoading] = useState(false);
+  const [showManagerDashboard, setShowManagerDashboard] = useState(false);
+
+  const isManager = user?.role === "manager";
+
+  const selectedTeam = teams.find(
+    (team) => team.id === selectedTeamId
+  );
+
+  const selectedTeamMembership = teamMembers.find(
+    (member) => member.user_id === user?.id
+  );
+
+  const isTeamHead = selectedTeamMembership?.role === "team_head";
+
+  const displayRole = isManager
+    ? "Manager"
+    : isTeamHead
+      ? "Team Head"
+      : "Member";
+
+  const canManageSelectedTeam =
+    isManager ||
+    isTeamHead ||
+    selectedTeam?.owner_id === user?.id;
 
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({
@@ -236,6 +262,27 @@ const [showTeamPanel, setShowTeamPanel] = useState(false);
     );
   };
 
+  const fetchManagerDashboard = async () => {
+    if (!token || !isManager) {
+      setManagerDashboard(null);
+      return;
+    }
+
+    setManagerDashboardLoading(true);
+
+    try {
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      const response = await api.get("/manager/dashboard");
+      setManagerDashboard(response.data);
+    } catch (error) {
+      handleAuthError(error);
+      setManagerDashboard(null);
+    } finally {
+      setManagerDashboardLoading(false);
+    }
+  };
+
   const fetchTeams = async () => {
   if (!token) return;
 
@@ -346,6 +393,27 @@ const removeTeamMember = async (userId) => {
     );
 
     await fetchTeamMembers(selectedTeamId);
+  } catch (error) {
+    handleAuthError(error);
+  }
+};
+
+const updateTeamMemberRole = async (userId, role) => {
+  if (!token || !selectedTeamId || !isManager) return;
+
+  try {
+    await api.put(
+      `/teams/${selectedTeamId}/members/${userId}`,
+      { role },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    await fetchTeamMembers(selectedTeamId);
+    await fetchManagerDashboard();
   } catch (error) {
     handleAuthError(error);
   }
@@ -501,6 +569,14 @@ const fetchUserAndTasks = async () => {
     fetchTeams();
   }
 }, [token]);
+useEffect(() => {
+  if (token && isManager) {
+    fetchManagerDashboard();
+  } else {
+    setManagerDashboard(null);
+  }
+}, [token, isManager]);
+
 
 useEffect(() => {
   if (token && selectedTeamId) {
@@ -1254,6 +1330,19 @@ useEffect(() => {
             <span>-</span>
             Completed
           </button>
+
+          {isManager && (
+            <button
+              className={`nav-item ${
+                showManagerDashboard ? "active" : ""
+              }`}
+              type="button"
+              onClick={() => setShowManagerDashboard(true)}
+            >
+              <span>-</span>
+              Manager Dashboard
+            </button>
+          )}
         </nav>
 
         <div className="sidebar-bottom">
@@ -1265,6 +1354,7 @@ useEffect(() => {
             <div className="user-details">
               <strong>{user?.username}</strong>
               <small>{user?.email}</small>
+              <span className="user-role-badge">{displayRole}</span>
             </div>
           </div>
 
@@ -1374,6 +1464,166 @@ useEffect(() => {
             )}
           </div>
         </header>
+
+        {showManagerDashboard && isManager && (
+          <section className="manager-dashboard">
+            <div className="manager-dashboard-header">
+              <div>
+                <h2>Company Dashboard</h2>
+                <p>Overview of teams, projects, tasks, and progress.</p>
+              </div>
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowManagerDashboard(false)}
+              >
+                Back to Tasks
+              </button>
+            </div>
+
+            {managerDashboardLoading ? (
+              <div className="dashboard-empty">
+                Loading company dashboard...
+              </div>
+            ) : !managerDashboard ? (
+              <div className="dashboard-empty">
+                Unable to load company dashboard.
+              </div>
+            ) : (
+              <>
+                <div className="manager-stats-grid">
+                  <div className="manager-stat-card">
+                    <span>Total Teams</span>
+                    <strong>{managerDashboard.total_teams}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>Total Members</span>
+                    <strong>{managerDashboard.total_members}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>Total Projects</span>
+                    <strong>{managerDashboard.total_projects}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>Total Tasks</span>
+                    <strong>{managerDashboard.total_tasks}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>Completed</span>
+                    <strong>{managerDashboard.completed_tasks}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>In Progress</span>
+                    <strong>{managerDashboard.in_progress_tasks}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>In Review</span>
+                    <strong>{managerDashboard.in_review_tasks}</strong>
+                  </div>
+
+                  <div className="manager-stat-card">
+                    <span>Overdue</span>
+                    <strong>{managerDashboard.overdue_tasks}</strong>
+                  </div>
+                </div>
+
+                <div className="manager-progress-card">
+                  <div className="manager-progress-header">
+                    <div>
+                      <strong>Overall Progress</strong>
+                      <span>
+                        {managerDashboard.completed_tasks} of{" "}
+                        {managerDashboard.total_tasks} tasks completed
+                      </span>
+                    </div>
+
+                    <strong>{managerDashboard.progress}%</strong>
+                  </div>
+
+                  <div className="manager-progress-track">
+                    <div
+                      className="manager-progress-fill"
+                      style={{
+                        width: `${managerDashboard.progress}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="manager-teams-section">
+                  <div className="manager-dashboard-header">
+                    <div>
+                      <h3>Team Performance</h3>
+                      <p>Progress across every company team.</p>
+                    </div>
+                  </div>
+
+                  {managerDashboard.teams.length === 0 ? (
+                    <div className="dashboard-empty">
+                      No teams have been created yet.
+                    </div>
+                  ) : (
+                    <div className="manager-team-grid">
+                      {managerDashboard.teams.map((team) => (
+                        <div
+                          className="manager-team-card"
+                          key={team.team_id}
+                        >
+                          <div className="manager-team-header">
+                            <div>
+                              <h4>{team.team_name}</h4>
+                              <span>
+                                {team.member_count} members ?{" "}
+                                {team.project_count} projects
+                              </span>
+                            </div>
+
+                            <strong>{team.progress}%</strong>
+                          </div>
+
+                          <div className="manager-progress-track">
+                            <div
+                              className="manager-progress-fill"
+                              style={{
+                                width: `${team.progress}%`,
+                              }}
+                            />
+                          </div>
+
+                          <div className="manager-team-stats">
+                            <span>
+                              <strong>{team.total_tasks}</strong> tasks
+                            </span>
+
+                            <span>
+                              <strong>{team.completed_tasks}</strong> completed
+                            </span>
+
+                            <span>
+                              <strong>{team.in_progress_tasks}</strong> active
+                            </span>
+
+                            <span>
+                              <strong>{team.overdue_tasks}</strong> overdue
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
 
         <section className="dashboard-grid">
           <div className="progress-card">
@@ -1493,13 +1743,15 @@ useEffect(() => {
         )}
       </select>
 
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => setShowTeamPanel((current) => !current)}
-      >
-        {showTeamPanel ? "Hide Members" : "Manage Team"}
-      </button>
+      {canManageSelectedTeam && (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => setShowTeamPanel((current) => !current)}
+        >
+          {showTeamPanel ? "Hide Members" : "Manage Team"}
+        </button>
+      )}
     </div>
   </div>
 
@@ -1515,8 +1767,7 @@ useEffect(() => {
             const selectedTeam = teams.find(
               (team) => team.id === selectedTeamId
             );
-            const canManage =
-              selectedTeam && user && selectedTeam.owner_id === user.id;
+            const canManage = canManageSelectedTeam;
 
             return (
               <div className="team-member-row" key={member.id}>
@@ -1532,6 +1783,25 @@ useEffect(() => {
                 <span className={`team-role role-${member.role}`}>
                   {member.role}
                 </span>
+
+                {isManager &&
+                  member.user_id !== user.id &&
+                  member.role !== "admin" && (
+                    <button
+                      type="button"
+                      className="member-role-button"
+                      onClick={() =>
+                        updateTeamMemberRole(
+                          member.user_id,
+                          member.role === "team_head" ? "member" : "team_head"
+                        )
+                      }
+                    >
+                      {member.role === "team_head"
+                        ? "Make Member"
+                        : "Make Team Head"}
+                    </button>
+                  )}
 
                 {canManage &&
                   member.user_id !== user.id &&
@@ -1555,7 +1825,7 @@ useEffect(() => {
           (team) => team.id === selectedTeamId
         );
 
-        if (!selectedTeam || !user || selectedTeam.owner_id !== user.id) {
+        if (!selectedTeam || !user || !canManageSelectedTeam) {
           return null;
         }
 

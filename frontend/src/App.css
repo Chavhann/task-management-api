@@ -3163,3 +3163,236 @@ select:focus-visible {
     min-height: 100px;
   }
 }
+
+
+/* Manager Dashboard */
+
+.manager-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px;
+}
+
+.manager-dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.manager-dashboard-header h2,
+.manager-dashboard-header h3 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.manager-dashboard-header h2 {
+  font-size: 24px;
+}
+
+.manager-dashboard-header h3 {
+  font-size: 18px;
+}
+
+.manager-dashboard-header p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.manager-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.manager-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  background: #0f172a;
+}
+
+.manager-stat-card span {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.manager-stat-card strong {
+  color: #f8fafc;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.manager-progress-card {
+  padding: 20px;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  background: #0f172a;
+}
+
+.manager-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.manager-progress-header div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.manager-progress-header strong {
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.manager-progress-header span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.manager-progress-track {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #1e293b;
+}
+
+.manager-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #0ea5e9;
+  transition: width 0.3s ease;
+}
+
+.manager-teams-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.manager-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.manager-team-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  background: #0f172a;
+}
+
+.manager-team-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manager-team-header h4 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 15px;
+}
+
+.manager-team-header span {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.manager-team-header > strong {
+  color: #38bdf8;
+  font-size: 16px;
+}
+
+.manager-team-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.manager-team-stats span {
+  padding: 9px;
+  border-radius: 8px;
+  background: #111827;
+  color: #64748b;
+  font-size: 10px;
+  text-align: center;
+}
+
+.manager-team-stats strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #e2e8f0;
+  font-size: 14px;
+}
+
+.dashboard-empty {
+  padding: 28px;
+  border: 1px dashed #334155;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .manager-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .manager-team-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .manager-dashboard {
+    padding: 16px;
+  }
+
+  .manager-dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .manager-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-team-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+.user-role-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border: 1px solid #164e63;
+  border-radius: 999px;
+  background: #082f49;
+  color: #38bdf8;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
